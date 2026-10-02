@@ -61,7 +61,7 @@ def verify_government_credentials(extracted_data: dict) -> dict:
             gstn_details = {"portal": "GSTN Common Portal", "gstin": gstin, "valid_format": False, "detail": "Incorrect checksum/structure."}
 
 
-    # 2. PAN Verification & Entity Type Check 
+    # ── 2. PAN Verification & Entity Type Check ───────────────
     pan_status = "NOT_PROVIDED"
     pan_badge = "FAIL"
     pan_details = {}
@@ -72,7 +72,7 @@ def verify_government_credentials(extracted_data: dict) -> dict:
             entity_types = {
                 "C": "Company (Corporate)",
                 "P": "Individual / Proprietorship",
-                "F": "Partnership Firm", # Will be fixed to include LLPs in Commit 31
+                "F": "Firm / LLP",
                 "A": "Association of Persons",
                 "T": "Trust",
                 "L": "Local Authority"
@@ -91,6 +91,7 @@ def verify_government_credentials(extracted_data: dict) -> dict:
             pan_status = "INVALID_FORMAT"
             pan_badge = "FAIL"
             pan_details = {"portal": "ITD PAN Registry", "pan": pan, "valid_format": False}
+
 
     # ── 3. Udyam MSME Portal Verification ─────────────────────
     udyam_status = "NOT_APPLICABLE"
