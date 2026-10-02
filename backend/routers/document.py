@@ -41,7 +41,7 @@ async def upload_document(file: UploadFile = File(...)):
     """
     Upload a vendor bid document (PDF, Word .docx, Excel .xlsx, CSV, or Image).
     """
-    ext = os.path.splitext(file.filename)[1]  # missing .lower()
+    ext = os.path.splitext(file.filename)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
@@ -93,3 +93,4 @@ async def upload_tender_rfp(file: UploadFile = File(...)):
         "message": "Tender RFP Document uploaded and conditions parsed.",
         "tender_data": tender_data
     }
+
