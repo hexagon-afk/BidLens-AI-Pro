@@ -24,5 +24,26 @@ class TestKnowledgeGraphEngine(unittest.TestCase):
         self.assertIn("edges", graph)
         self.assertGreaterEqual(graph["summary"]["total_nodes"], 4)
 
+    def test_semantic_compliance_chain_relations(self):
+        """Verify Regulation -> Clause -> Evidence -> Decision directed relations."""
+        file_info = {"filename": "proposal.pdf", "vendor_name": "MegaTech Systems"}
+        clauses = [
+            {
+                "clause_id": "GFR-160-TO",
+                "clause_name": "Turnover Threshold",
+                "regulation_ref": "GFR 2017 Rule 160",
+                "status": "PASS",
+                "evidence": "CA audited turnover sheet."
+            }
+        ]
+        govt = {"overall_govt_verification": "PASS"}
+        graph = build_compliance_knowledge_graph(file_info, clauses, govt)
+        relations = [e["relation"] for e in graph["edges"]]
+        
+        self.assertIn("governs", relations)
+        self.assertIn("mandates_evidence", relations)
+        self.assertIn("justifies_decision", relations)
+        self.assertIn("cross_verified_with_portal", relations)
+
 if __name__ == '__main__':
     unittest.main()
