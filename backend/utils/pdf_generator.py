@@ -26,7 +26,7 @@ class OfficialReportCanvas(canvas.Canvas):
         self._startPage()
 
     def save(self):
-        num_pages = len(self._saved_page_states)
+        num_pages = max(1, len(self._saved_page_states))
         for state in self._saved_page_states:
             self.__dict__.update(state)
             self._draw_decorations(num_pages)
@@ -65,6 +65,10 @@ def generate_certified_audit_pdf(
     Builds a clean, official black-and-white PDF audit report with integrated Supervisory Override Log
     and manual physical sign-off box with smooth document flow (no awkward empty page gaps).
     """
+    out_dir = os.path.dirname(os.path.abspath(output_filepath))
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+
     doc = SimpleDocTemplate(
         output_filepath,
         pagesize=letter,
@@ -134,8 +138,8 @@ def generate_certified_audit_pdf(
     risk_info = audit_data.get("rejection_risk_analysis", {})
     value_spot = audit_data.get("value_spotlight", {})
 
-    vendor_name = file_info["vendor_name"]
-    filename = file_info["filename"]
+    vendor_name = file_info.get("vendor_name", "Vendor Legal Entity")
+    filename = file_info.get("filename", "document.pdf")
     status_text = comp_sum.get("overall_status", "PENDING")
     risk_tier = comp_sum.get("risk_tier", "LOW")
     eval_officer = officer_name or "Procurement Officer"
