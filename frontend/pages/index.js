@@ -116,6 +116,7 @@ export default function Home() {
 
   // 1. Handle Tender RFP Upload from laptop
   const handleTenderUpload = async (file) => {
+    if (!file) return;
     setIsUploading(true);
     const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
     setStatusMessage(`Uploading and parsing Tender RFP: ${file.name} (${sizeMb} MB)...`);
@@ -388,6 +389,7 @@ export default function Home() {
 
   // 2. Upload Custom Rules / Policy Document (Directly in Rules screen)
   const handleCustomRulesUpload = (file) => {
+    if (!file) return;
     setCustomRulesDocument({
       filename: file.name,
       uploadedAt: new Date().toLocaleTimeString(),
@@ -405,6 +407,7 @@ export default function Home() {
 
   // 3. Add a vendor proposal file from laptop to queue
   const handleAddVendorFile = async (file) => {
+    if (!file) return;
     setIsUploading(true);
     const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
     setStatusMessage(`Uploading vendor proposal: ${file.name} (${sizeMb} MB)...`);
@@ -639,6 +642,7 @@ export default function Home() {
   };
 
   const handleUploadRectificationFile = async (file) => {
+    if (!file) return;
     setIsUploading(true);
     setStatusMessage(`Uploading and auditing rectification file: ${file.name}...`);
     try {
