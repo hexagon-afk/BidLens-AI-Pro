@@ -50,6 +50,7 @@ export const SAMPLE_AUDIT_RESULTS = [
   {
     file_id: "sample_bid_apexlabs_msme_pdf",
     is_compliant: true,
+    overall_status: "COMPLIANT",
     compliance_score: 1.0,
     disqualification_reasons: [],
     file_info: {
@@ -132,6 +133,7 @@ export const SAMPLE_AUDIT_RESULTS = [
   {
     file_id: "sample_bid_megatech_bigbrand_pdf",
     is_compliant: true,
+    overall_status: "COMPLIANT",
     compliance_score: 1.0,
     disqualification_reasons: [],
     file_info: {
@@ -209,6 +211,7 @@ export const SAMPLE_AUDIT_RESULTS = [
   {
     file_id: "sample_bid_globalcorp_ineligible_pdf",
     is_compliant: false,
+    overall_status: "NON_COMPLIANT",
     compliance_score: 0.4,
     disqualification_reasons: [
       "CRITICAL: Found contradictory PAN numbers (AAACG1122J vs AAACG9999P) across proposal documents.",
@@ -236,16 +239,16 @@ export const SAMPLE_AUDIT_RESULTS = [
       local_content_pct: 0
     },
     branch_b_clause_results: [
-      { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "FAIL", regulation_ref: "GFR 2017 Rule 149 / Statutory Tax Compliance", evidence: "GSTIN 06AAACG1122J1Z8 is flagged as EXPIRED or CANCELLED.", remedy: "Provide active GSTIN reactivation certificate from GST portal." },
-      { clause_id: "GFR-160-MSME", clause_name: "Annual Financial Turnover Requirement", status: "EXEMPT", regulation_ref: "Public Procurement Policy for MSEs Order 2012 / GFR Rule 173 & MSE Policy 2012", evidence: "Exemption claimed under MSE provisions.", remedy: null },
-      { clause_id: "GFR-170-EMD", clause_name: "Earnest Money Deposit (EMD)", status: "EXEMPT", regulation_ref: "GFR 2017 Rule 170(i) / MSME Policy 2012", evidence: "Exemption claimed under MSE provisions.", remedy: null },
+      { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "FAIL", regulation_ref: "Statutory Tax Compliance / GeM Registration Norms", evidence: "GSTIN 06AAACG1122J1Z8 is flagged as EXPIRED or CANCELLED.", remedy: "Provide active GSTIN reactivation certificate from GST portal." },
+      { clause_id: "GFR-160-MSME", clause_name: "Annual Financial Turnover Requirement", status: "NEEDS_REVIEW", regulation_ref: "Public Procurement Policy for MSEs Order 2012 / GFR Rule 173", evidence: "Vendor claims MSME relaxation with turnover of INR 0.85 Cr (required >= INR 1.50 Cr), but valid Udyam registration certificate is missing or unverified.", remedy: "Provide valid Udyam registration certificate for micro/small enterprise verification." },
+      { clause_id: "GFR-170-EMD", clause_name: "Earnest Money Deposit (EMD)", status: "FAIL", regulation_ref: "Tender Bid Security Clause / GFR 2017 Rule 170", evidence: "EMD is MISSING and MSME exemption is unverified.", remedy: "Submit EMD of INR 1,00,000 or verified Udyam registration certificate." },
       { clause_id: "MII-2017-LC", clause_name: "Make in India Local Content Preference", status: "FAIL", regulation_ref: "Public Procurement (Make in India) Order 2017", evidence: "Local content of 0% fails Class-1 Local Supplier requirement (Minimum 50%).", remedy: "Provide OEM certificate verifying >= 50% domestic value addition." },
       { clause_id: "SPEC-WARRANTY", clause_name: "Comprehensive Onsite Warranty", status: "FAIL", regulation_ref: "Tender Technical Specifications", evidence: "Offers sub-standard warranty (6-Month Carry-in). Minimum 3-Year comprehensive warranty required.", remedy: "Provide OEM commitment letter for 3-Year onsite warranty coverage." }
     ],
     clause_level_decisions: [
-      { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "FAIL", regulation_ref: "GFR 2017 Rule 149 / Statutory Tax Compliance", evidence: "GSTIN 06AAACG1122J1Z8 is flagged as EXPIRED or CANCELLED.", remedy: "Provide active GSTIN reactivation certificate from GST portal." },
-      { clause_id: "GFR-160-MSME", clause_name: "Annual Financial Turnover Requirement", status: "EXEMPT", regulation_ref: "Public Procurement Policy for MSEs Order 2012 / GFR Rule 173 & MSE Policy 2012", evidence: "Exemption claimed under MSE provisions.", remedy: null },
-      { clause_id: "GFR-170-EMD", clause_name: "Earnest Money Deposit (EMD)", status: "EXEMPT", regulation_ref: "GFR 2017 Rule 170(i) / MSME Policy 2012", evidence: "Exemption claimed under MSE provisions.", remedy: null },
+      { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "FAIL", regulation_ref: "Statutory Tax Compliance / GeM Registration Norms", evidence: "GSTIN 06AAACG1122J1Z8 is flagged as EXPIRED or CANCELLED.", remedy: "Provide active GSTIN reactivation certificate from GST portal." },
+      { clause_id: "GFR-160-MSME", clause_name: "Annual Financial Turnover Requirement", status: "NEEDS_REVIEW", regulation_ref: "Public Procurement Policy for MSEs Order 2012 / GFR Rule 173", evidence: "Vendor claims MSME relaxation with turnover of INR 0.85 Cr (required >= INR 1.50 Cr), but valid Udyam registration certificate is missing or unverified.", remedy: "Provide valid Udyam registration certificate for micro/small enterprise verification." },
+      { clause_id: "GFR-170-EMD", clause_name: "Earnest Money Deposit (EMD)", status: "FAIL", regulation_ref: "Tender Bid Security Clause / GFR 2017 Rule 170", evidence: "EMD is MISSING and MSME exemption is unverified.", remedy: "Submit EMD of INR 1,00,000 or verified Udyam registration certificate." },
       { clause_id: "MII-2017-LC", clause_name: "Make in India Local Content Preference", status: "FAIL", regulation_ref: "Public Procurement (Make in India) Order 2017", evidence: "Local content of 0% fails Class-1 Local Supplier requirement (Minimum 50%).", remedy: "Provide OEM certificate verifying >= 50% domestic value addition." },
       { clause_id: "SPEC-WARRANTY", clause_name: "Comprehensive Onsite Warranty", status: "FAIL", regulation_ref: "Tender Technical Specifications", evidence: "Offers sub-standard warranty (6-Month Carry-in). Minimum 3-Year comprehensive warranty required.", remedy: "Provide OEM commitment letter for 3-Year onsite warranty coverage." }
     ],
