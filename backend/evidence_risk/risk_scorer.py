@@ -101,7 +101,8 @@ def compute_risk_and_value_intelligence(extracted_data: dict, clause_results: li
     if rejection_likely:
         executive_summary = f"REJECT / CLARIFY: High rejection risk detected ({len(fail_clauses)} failed statutory clauses and {len(critical_contradictions)} critical discrepancies). Recommend issuing clarification letter before final disqualification."
     elif value_spotlight_active:
-        executive_summary = f"RECOMMENDED (VALUE-FOR-MONEY SPOTLIGHT): Fully compliant proposal with INR {savings_inr:,.0f} cost savings and superior warranty/hardware terms compared to standard bids."
+        savings_text = f"with INR {savings_inr:,.0f} cost savings and " if savings_inr is not None else "with "
+        executive_summary = f"RECOMMENDED (VALUE-FOR-MONEY SPOTLIGHT): Fully compliant proposal {savings_text}superior warranty/hardware terms compared to standard bids."
     else:
         executive_summary = "COMPLIANT: Bid meets all mandatory GFR requirements and technical specifications."
 
