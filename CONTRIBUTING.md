@@ -8,8 +8,8 @@ Thank you for contributing to **BidLens AI** (Smart India Hackathon 2026, Proble
 
 1. **Clone & Branch:**
    ```bash
-   git clone https://github.com/BidLens-AI/BidLens-AI.git
-   cd BidLens-AI
+   git clone https://github.com/hexagon-afk/BidLens-AI-Pro.git
+   cd BidLens-AI-Pro
    git checkout -b feature/your-feature-name
    ```
 2. **Setup Virtual Environment:**
