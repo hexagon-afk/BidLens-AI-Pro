@@ -7,8 +7,9 @@ from evidence_risk.contradiction import detect_cross_document_contradictions
 
 class TestContradictionDetector(unittest.TestCase):
     def test_detector_initialization(self):
-        # Initial scaffold test
-        res = detect_cross_document_contradictions({}, {})
+        extracted = {"all_pans": [], "raw_text": "", "is_msme": False}
+        govt = {"pan_gstin_consistent": True}
+        res = detect_cross_document_contradictions(extracted, govt)
         self.assertIsInstance(res, list)
 
 if __name__ == '__main__':
