@@ -24,7 +24,7 @@ def detect_cross_document_contradictions(extracted_data: dict, govt_verification
     total_quote = extracted_data.get("total_quote_inr")
 
     # ── 1. Multiple Different PANs within same Bid Proposal ───
-    unique_pans = list(set(all_pans))
+    unique_pans = list(set(p.upper().strip() for p in all_pans if p))
     if len(unique_pans) > 1:
         contradictions.append({
             "contradiction_id": "CONTRA-PAN-01",
@@ -135,3 +135,4 @@ def calculate_claim_integrity_score(extracted_data: dict, contradictions: list) 
         "description": desc,
         "unsubstantiated_claims_count": len([c for c in contradictions if "UNSUBSTANTIATED" in c.get("type", "") or "UNVERIFIED" in c.get("type", "")])
     }
+
