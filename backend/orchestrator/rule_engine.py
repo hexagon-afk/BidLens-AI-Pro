@@ -141,3 +141,35 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
             "remedy": "Provide OEM certificate verifying >= 50% domestic value addition."
         })
 
+
+    # ── 5. Warranty & Service Level Compliance ────────────────
+    warranty = extracted_data.get("warranty", "")
+    if "5-year" in warranty.lower():
+        results.append({
+            "clause_id": "SPEC-WARRANTY",
+            "clause_name": "Comprehensive Onsite Warranty",
+            "status": "PASS",
+            "regulation_ref": "Tender Technical Specifications",
+            "evidence": f"Offers {warranty} (Exceeds 3-year baseline preference).",
+            "remedy": None
+        })
+    elif "3-year" in warranty.lower() or "1-year" in warranty.lower():
+        results.append({
+            "clause_id": "SPEC-WARRANTY",
+            "clause_name": "Comprehensive Onsite Warranty",
+            "status": "PASS",
+            "regulation_ref": "Tender Technical Specifications",
+            "evidence": f"Offers {warranty}.",
+            "remedy": None
+        })
+    else:
+        results.append({
+            "clause_id": "SPEC-WARRANTY",
+            "clause_name": "Comprehensive Onsite Warranty",
+            "status": "FAIL",
+            "regulation_ref": "Tender Technical Specifications",
+            "evidence": f"Offers sub-standard warranty ({warranty}). Minimum 3-Year comprehensive warranty required.",
+            "remedy": "Provide OEM commitment letter for 3-Year onsite warranty coverage."
+        })
+
+    return results
