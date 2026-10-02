@@ -88,7 +88,7 @@ def detect_cross_document_contradictions(extracted_data: dict, govt_verification
     # -- 6. MSME Claim without Verifiable Udyam Certificate ----
     udyam = extracted_data.get("udyam")
     msme_claimed_in_text = ("msme" in raw_text or "micro enterprise" in raw_text or "small enterprise" in raw_text or "udyam" in raw_text)
-    if msme_claimed_in_text and not is_msme:
+    if msme_claimed_in_text and not udyam:
         contradictions.append({
             "contradiction_id": "CONTRA-FRAUD-UDYAM-06",
             "type": "UNVERIFIED_MSME_CLAIM",
@@ -100,4 +100,5 @@ def detect_cross_document_contradictions(extracted_data: dict, govt_verification
         })
 
     return contradictions
+
 
