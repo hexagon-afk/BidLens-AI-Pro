@@ -59,7 +59,7 @@ def detect_cross_document_contradictions(extracted_data: dict, govt_verification
     # ── 4. MSME Status vs High Turnover Threshold Discrepancy ─
     is_msme = extracted_data.get("is_msme", False)
     turnover_cr = extracted_data.get("turnover_cr")
-    if not is_msme and turnover_cr < 1.50:
+    if not is_msme and turnover_cr is not None and turnover_cr < 1.50:
         contradictions.append({
             "contradiction_id": "CONTRA-ELIGIBILITY-04",
             "type": "NON_MSME_BELOW_THRESHOLD",
