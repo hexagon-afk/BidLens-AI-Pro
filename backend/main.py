@@ -51,12 +51,12 @@ BidLens AI is an intelligent procurement compliance auditor designed for the **G
     openapi_tags=tags_metadata
 )
 
-# Allow frontend on localhost:3000 to communicate with backend
+# Allow frontend (Next.js on port 3000) and any local client to talk to backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
