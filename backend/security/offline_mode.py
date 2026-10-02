@@ -30,12 +30,11 @@ def get_system_health_status() -> dict:
         "data_consumption_kb": 0.0,
         "cloud_data_retention": "DISABLED (AIR-GAPPED COMPATIBLE)",
         "security_integrity": {
-            "cryptographic_fingerprinting": "SHA-256 ENABLED",
-            "prompt_injection_sanitizer": "ACTIVE",
-            "tamper_evident_audit_log": "ACTIVE (LOCAL_SHA256)",
-            "tamper_proof_audit_log": "ACTIVE",
-            "cert_in_compliance": "PASS",
-            "cert_in_guidelines_alignment": "LOCAL_PROTOTYPE_BASELINE"
+            "cryptographic_fingerprinting": "SHA-256 (PER-DOCUMENT DIGEST)",
+            "prompt_injection_sanitizer": "ACTIVE (BOUNDARY TAGGING & REGEX FILTER)",
+            "tamper_evident_audit_log": "ACTIVE (LOCAL APPEND-ONLY LOG)",
+            "compliance_ruleset": "DETERMINISTIC (GFR 2017 & MII 2017 RULES)",
+            "guidelines_alignment": "PROTOTYPE_BASELINE"
         },
         "environment": {
             "os": os_name,

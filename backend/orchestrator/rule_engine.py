@@ -201,25 +201,38 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
             "remedy": "Upload official Udyam Registration Certificate with verification QR code."
         })
     elif emd_status == "SUBMITTED":
-        if emd_amount_inr is not None and emd_required is not None and emd_amount_inr < emd_required:
-            shortfall = emd_required - emd_amount_inr
-            results.append({
-                "clause_id": "GFR-170-EMD",
-                "clause_name": "Earnest Money Deposit (EMD)",
-                "status": "FAIL",
-                "regulation_ref": "Tender Bid Security Clause / GFR 2017 Rule 170",
-                "evidence": f"EMD instrument submitted for INR {emd_amount_inr:,.0f} falls short of required INR {emd_required:,.0f} (Shortfall: INR {shortfall:,.0f}).",
-                "remedy": f"Submit supplementary Bank Guarantee for remaining INR {shortfall:,.0f}."
-            })
+        if emd_amount_inr is not None and emd_required is not None:
+            if emd_amount_inr < emd_required:
+                shortfall = emd_required - emd_amount_inr
+                results.append({
+                    "clause_id": "GFR-170-EMD",
+                    "clause_name": "Earnest Money Deposit (EMD)",
+                    "status": "FAIL",
+                    "regulation_ref": "Tender Bid Security Clause / GFR 2017 Rule 170",
+                    "evidence": f"EMD instrument submitted for INR {emd_amount_inr:,.0f} falls short of required INR {emd_required:,.0f} (Shortfall: INR {shortfall:,.0f}).",
+                    "remedy": f"Submit supplementary Bank Guarantee for remaining INR {shortfall:,.0f}."
+                })
+            else:
+                inst_txt = f" (Instrument ID: {extracted_data.get('emd_instrument_id')})" if extracted_data.get("emd_instrument_id") else ""
+                results.append({
+                    "clause_id": "GFR-170-EMD",
+                    "clause_name": "Earnest Money Deposit (EMD)",
+                    "status": "PASS",
+                    "regulation_ref": "Tender Bid Security Clause / GFR 2017 Rule 170",
+                    "evidence": f"Valid EMD Bank Guarantee / FDR submitted for INR {emd_amount_inr:,.0f}{inst_txt}.",
+                    "remedy": None
+                })
         else:
-            evidence_text = f"Valid EMD Bank Guarantee / FDR submitted for INR {emd_amount_inr:,.0f}." if emd_amount_inr else "Valid EMD Bank Guarantee / FDR submitted as per tender terms."
+            # Bank Guarantee / EMD instrument submitted, but monetary face value is unverified
+            inst_desc = f"Instrument ID: {extracted_data.get('emd_instrument_id')}" if extracted_data.get("emd_instrument_id") else "Bank Guarantee reference declared"
+            req_str = f"INR {emd_required:,.0f}" if emd_required else "tender requirement"
             results.append({
                 "clause_id": "GFR-170-EMD",
                 "clause_name": "Earnest Money Deposit (EMD)",
-                "status": "PASS",
+                "status": "NEEDS_REVIEW",
                 "regulation_ref": "Tender Bid Security Clause / GFR 2017 Rule 170",
-                "evidence": evidence_text,
-                "remedy": None
+                "evidence": f"EMD instrument submitted ({inst_desc}), but monetary face value could not be reliably verified against required {req_str}.",
+                "remedy": "Officer verification required: inspect physical Bank Guarantee / FDR copy to confirm face value."
             })
     elif emd_status == "MISSING":
         results.append({
@@ -292,17 +305,28 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
     # ── 5. Warranty & Service Level Compliance ────────────────
     warranty = extracted_data.get("warranty", "")
     offered_years = extracted_data.get("warranty_years")
+    offered_service_type = extracted_data.get("offered_service_type", "Standard")
+    if not offered_service_type or offered_service_type == "Standard":
+        if "carry-in" in warranty.lower() or "carry in" in warranty.lower() or "offsite" in warranty.lower():
+            offered_service_type = "Carry-in"
+        elif "onsite" in warranty.lower() or "on-site" in warranty.lower():
+            offered_service_type = "Onsite"
+
+    required_service_type = tender_requirements.get("required_service_type", "Onsite")
+    min_warranty_years = tender_requirements.get("min_warranty_years")
+
     if offered_years is None and warranty:
         if "5-year" in warranty.lower() or "5 year" in warranty.lower():
             offered_years = 5.0
         elif "3-year" in warranty.lower() or "3 year" in warranty.lower():
             offered_years = 3.0
+        elif "2-year" in warranty.lower() or "2 year" in warranty.lower():
+            offered_years = 2.0
         elif "1-year" in warranty.lower() or "1 year" in warranty.lower():
             offered_years = 1.0
         elif "6-month" in warranty.lower():
             offered_years = 0.5
-
-    min_warranty_years = tender_requirements.get("min_warranty_years")
+            offered_service_type = "Carry-in"
 
     if is_unreadable:
         results.append({
@@ -328,19 +352,19 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
             "clause_name": "Comprehensive Onsite Warranty",
             "status": "NEEDS_REVIEW",
             "regulation_ref": "Tender Technical Specifications (Warranty SLA)",
-            "evidence": f"Warranty terms unspecified or unreadable ({warranty}). Required: {min_warranty_years:.0f}-Year.",
-            "remedy": f"Provide OEM commitment letter for {min_warranty_years:.0f}-Year onsite warranty coverage."
+            "evidence": f"Warranty terms unspecified or unreadable ({warranty}). Required: {min_warranty_years:.0f}-Year {required_service_type}.",
+            "remedy": f"Provide OEM commitment letter for {min_warranty_years:.0f}-Year {required_service_type} warranty coverage."
         })
-    elif offered_years >= min_warranty_years:
+    elif required_service_type.lower() == "onsite" and offered_service_type.lower() == "carry-in":
         results.append({
             "clause_id": "SPEC-WARRANTY",
             "clause_name": "Comprehensive Onsite Warranty",
-            "status": "PASS",
+            "status": "FAIL",
             "regulation_ref": "Tender Technical Specifications (Warranty SLA)",
-            "evidence": f"Offers {warranty} ({offered_years:.0f} yr >= mandatory {min_warranty_years:.0f} yr requirement).",
-            "remedy": None
+            "evidence": f"Offers {warranty} ({offered_years:.1f} yr Carry-in) which fails mandatory Onsite warranty requirement (SLA service location mismatch).",
+            "remedy": f"Provide OEM commitment letter upgrading warranty to {min_warranty_years:.0f}-Year Onsite coverage."
         })
-    else:
+    elif offered_years < min_warranty_years:
         results.append({
             "clause_id": "SPEC-WARRANTY",
             "clause_name": "Comprehensive Onsite Warranty",
@@ -348,6 +372,15 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
             "regulation_ref": "Tender Technical Specifications (Warranty SLA)",
             "evidence": f"Offers {warranty} ({offered_years:.1f} yr) which fails mandatory {min_warranty_years:.0f}-Year requirement.",
             "remedy": f"Provide OEM commitment letter for {min_warranty_years:.0f}-Year onsite warranty coverage."
+        })
+    else:
+        results.append({
+            "clause_id": "SPEC-WARRANTY",
+            "clause_name": "Comprehensive Onsite Warranty",
+            "status": "PASS",
+            "regulation_ref": "Tender Technical Specifications (Warranty SLA)",
+            "evidence": f"Offers {warranty} ({offered_years:.0f} yr >= mandatory {min_warranty_years:.0f} yr {required_service_type} requirement).",
+            "remedy": None
         })
 
     return results

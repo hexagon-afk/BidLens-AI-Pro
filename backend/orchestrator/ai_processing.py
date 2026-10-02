@@ -241,7 +241,7 @@ def extract_tender_rfp_data(file_path: str) -> dict:
 
     # 3. Estimated Tender Value / Budget (Supports INR digits, Lakhs, and Crores)
     budget_inr = None
-    budget_cr_match = re.search(r"(?:Estimated\s*(?:Tender\s*)?Value|Total\s*Value|Estimated\s*Cost|Budget|Estimated\s*Amount)[^\d]*([\d.]+)\s*(crore|cr|lakh|lakhs)", clean_text, re.IGNORECASE)
+    budget_cr_match = re.search(r"(?:Estimated\s*(?:Tender\s*)?Value|Total\s*Value|Estimated\s*Cost|Budget|Estimated\s*Amount)(?:\s*\([^)]*\))?[^\d\n\r]{0,30}?([\d.]+)\s*(crore|cr|lakh|lakhs)\b", clean_text, re.IGNORECASE)
     if budget_cr_match:
         try:
             val = float(budget_cr_match.group(1))
@@ -250,25 +250,39 @@ def extract_tender_rfp_data(file_path: str) -> dict:
         except Exception:
             budget_inr = None
     else:
-        budget_match = re.search(r"(?:Estimated\s*(?:Tender\s*)?Value|Total\s*Value|Estimated\s*Cost|Budget|Estimated\s*Amount)[:\s]*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d{2})?)", clean_text, re.IGNORECASE)
+        budget_match = re.search(r"(?:Estimated\s*(?:Tender\s*)?Value|Total\s*Value|Estimated\s*Cost|Budget|Estimated\s*Amount)(?:\s*\([^)]*\))?[:\s\n]*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d{2})?)", clean_text, re.IGNORECASE)
         if budget_match:
             try:
                 budget_inr = float(budget_match.group(1).replace(",", ""))
             except Exception:
                 budget_inr = None
 
-    # 4. Mandatory EMD (Earnest Money Deposit)
+    # 4. Mandatory EMD (Earnest Money Deposit) & Calculation Base
     emd_inr = None
-    emd_cr_match = re.search(r"(?:EMD|Earnest Money Deposit|Bid Security)[^\d\n\r]{0,40}?([\d.]+)\s*(crore|cr|lakh|lakhs)", clean_text, re.IGNORECASE)
-    if emd_cr_match:
+    # Priority A: Explicit percentage specifically tied to EMD clause
+    emd_pct_match = re.search(r"(?:EMD|Earnest Money Deposit|Bid Security)(?:\s*\([^)]*\))?[^\n\r\d%]{0,40}?(\d+(?:\.\d+)?)\s*%", clean_text, re.IGNORECASE)
+    if emd_pct_match:
         try:
-            val = float(emd_cr_match.group(1))
-            unit = emd_cr_match.group(2).lower()
-            emd_inr = (val * 10000000.0) if "cr" in unit else (val * 100000.0)
+            pct = float(emd_pct_match.group(1))
+            if budget_inr is not None and budget_inr > 0:
+                emd_inr = round(budget_inr * (pct / 100.0), 2)
         except Exception:
-            emd_inr = None
-    else:
-        emd_match = re.search(r"(?:EMD|Earnest Money Deposit|Bid Security)[:\s]*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d{2})?)", clean_text, re.IGNORECASE)
+            pass
+
+    # Priority B: Explicit Crore / Lakh amount tied to EMD
+    if emd_inr is None:
+        emd_cr_match = re.search(r"(?:EMD|Earnest Money Deposit|Bid Security)(?:\s*\([^)]*\))?[^\d\n\r]{0,40}?([\d.]+)\s*(crore|cr|lakh|lakhs)\b", clean_text, re.IGNORECASE)
+        if emd_cr_match:
+            try:
+                val = float(emd_cr_match.group(1))
+                unit = emd_cr_match.group(2).lower()
+                emd_inr = (val * 10000000.0) if "cr" in unit else (val * 100000.0)
+            except Exception:
+                emd_inr = None
+
+    # Priority C: Explicit numerical INR amount tied to EMD (not percentage)
+    if emd_inr is None:
+        emd_match = re.search(r"(?:EMD|Earnest Money Deposit|Bid Security)(?:\s*\([^)]*\))?[:\s\n]*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d{2})?)(?!\s*%)", clean_text, re.IGNORECASE)
         if emd_match:
             try:
                 cand_val = float(emd_match.group(1).replace(",", ""))
@@ -277,15 +291,14 @@ def extract_tender_rfp_data(file_path: str) -> dict:
             except Exception:
                 emd_inr = None
 
+    # Priority D: Explicit universal nil/zero EMD requirement
     if emd_inr is None:
         if re.search(r"\b(?:zero\s+emd|no\s+emd|nil\s+emd|emd\s*(?:is|:)?\s*nil|emd\s*:\s*0(?:\.00)?|emd\s+is\s+exempted\s+for\s+all)\b", clean_text, re.IGNORECASE):
             emd_inr = 0.0
-        elif budget_inr and ("2%" in clean_text or "2 percent" in clean_text.lower()):
-            emd_inr = round(budget_inr * 0.02, 2)
 
     # 5. Turnover Threshold (Crores / Lakhs)
     min_turnover_cr = None
-    turnover_match = re.search(r"(?:Average\s+Annual\s+Turnover|Annual\s+Turnover|Minimum\s+Turnover|Turnover)[^\d]*([\d.]+)\s*(crore|cr|lakh|lakhs)", clean_text, re.IGNORECASE)
+    turnover_match = re.search(r"(?:Average\s+Annual\s+Turnover|Annual\s+Turnover|Minimum\s+Turnover|Turnover)(?:\s*\([^)]*\))?[^\d\n\r]{0,40}?([\d.]+)\s*(crore|cr|lakh|lakhs)\b", clean_text, re.IGNORECASE)
     if turnover_match:
         try:
             val = float(turnover_match.group(1))
@@ -294,7 +307,7 @@ def extract_tender_rfp_data(file_path: str) -> dict:
         except Exception:
             min_turnover_cr = None
     else:
-        num_to_match = re.search(r"(?:Turnover)[^\d]*INR\s*([\d,]+)", clean_text, re.IGNORECASE)
+        num_to_match = re.search(r"(?:Turnover)[^\d\n\r]{0,30}?INR\s*([\d,]+)", clean_text, re.IGNORECASE)
         if num_to_match:
             try:
                 min_turnover_cr = round(float(num_to_match.group(1).replace(",", "")) / 10000000.0, 2)
@@ -303,17 +316,22 @@ def extract_tender_rfp_data(file_path: str) -> dict:
 
     # 6. Local Content % (Make in India Order 2017)
     min_local_content_pct = None
-    lc_match = re.search(r"(?:Local Content|Class-1|Local Supplier|MII)[^\d]*(\d{1,3})%", clean_text, re.IGNORECASE)
+    lc_match = re.search(r"(?:Local Content|Class-1|Local Supplier|MII)[^\d\n\r]{0,40}?(\d{1,3})%", clean_text, re.IGNORECASE)
     if lc_match:
         try:
             min_local_content_pct = int(lc_match.group(1))
         except Exception:
             min_local_content_pct = None
 
-    # 7. Warranty Requirement
+    # 7. Warranty Requirement & Service Location (Onsite vs Carry-in)
     warranty_req = None
     min_warranty_years = None
-    w_match = re.search(r"(?:mandatory|required|minimum|specifications?)?[^\n.]{0,30}warranty[^\n.]{0,20}?(\d+(?:\.\d+)?)\s*(?:years?|yrs?|months?)", clean_text, re.IGNORECASE)
+    required_service_type = "Onsite"
+
+    w_match = re.search(r"(?:warranty(?:\s+sla)?|sla|guarantee)[:\s\n]+(?:we\s+require\s+)?(\d+(?:\.\d+)?)\s*[- ](?:years?|yrs?|months?)", clean_text, re.IGNORECASE)
+    if not w_match:
+        w_match = re.search(r"(\d+(?:\.\d+)?)\s*[- ](?:years?|yrs?|months?)\s+[^\n\r.]{0,40}?(?:comprehensive|onsite|warranty|sla)", clean_text, re.IGNORECASE)
+
     if w_match:
         try:
             val = float(w_match.group(1))
@@ -321,23 +339,29 @@ def extract_tender_rfp_data(file_path: str) -> dict:
             if "month" in matched_str:
                 val = val / 12.0
             min_warranty_years = val
-            warranty_req = f"{int(val) if val.is_integer() else val}-Year Comprehensive Onsite Warranty"
         except Exception:
             pass
 
     if min_warranty_years is None:
-        if any(k in clean_text.lower() for k in ["5-year warranty", "5 year warranty", "60 months warranty"]):
-            warranty_req = "5-Year Comprehensive Onsite Warranty"
+        if any(k in clean_text.lower() for k in ["5-year warranty", "5 year warranty", "60 months warranty", "5-year comprehensive"]):
             min_warranty_years = 5.0
-        elif any(k in clean_text.lower() for k in ["3-year warranty", "3 year warranty", "36 months warranty"]):
-            warranty_req = "3-Year Comprehensive Onsite Warranty"
+        elif any(k in clean_text.lower() for k in ["3-year warranty", "3 year warranty", "36 months warranty", "3-year comprehensive"]):
             min_warranty_years = 3.0
-        elif any(k in clean_text.lower() for k in ["2-year warranty", "2 year warranty", "24 months warranty"]):
-            warranty_req = "2-Year Comprehensive Onsite Warranty"
+        elif any(k in clean_text.lower() for k in ["2-year warranty", "2 year warranty", "24 months warranty", "2-year comprehensive"]):
             min_warranty_years = 2.0
         elif any(k in clean_text.lower() for k in ["1-year warranty", "1 year warranty", "12 months warranty"]):
-            warranty_req = "1-Year Standard OEM Warranty"
             min_warranty_years = 1.0
+
+    # Determine service type requirement from warranty clauses
+    w_lines = " ".join([l for l in clean_text.split("\n") if any(k in l.lower() for k in ["warranty", "sla", "service level"])])
+    if "carry-in" in w_lines.lower() or "carry in" in w_lines.lower() or "offsite" in w_lines.lower():
+        required_service_type = "Carry-in"
+    else:
+        required_service_type = "Onsite"
+
+    if min_warranty_years is not None:
+        yr_label = int(min_warranty_years) if min_warranty_years.is_integer() else min_warranty_years
+        warranty_req = f"{yr_label}-Year Comprehensive {required_service_type} Warranty"
 
     return {
         "filename": os.path.basename(file_path),
@@ -351,6 +375,7 @@ def extract_tender_rfp_data(file_path: str) -> dict:
         "min_local_content_pct": min_local_content_pct,
         "warranty_requirement": warranty_req,
         "min_warranty_years": min_warranty_years,
+        "required_service_type": required_service_type,
         "raw_summary": clean_text[:400].strip()
     }
 
@@ -453,55 +478,126 @@ def extract_document_data(file_path: str) -> dict:
         turnover_cr = val if "cr" in unit else (val / 100.0)
 
     # 7. MSME Status & Negation Handling
-    non_msme_phrases = ["not an msme", "non-msme", "non msme", "not a micro", "not small enterprise", "ineligible for msme", "we are not an msme", "not registered as msme"]
+    non_msme_phrases = [
+        "no msme certificate", "no msme", "not an msme", "non-msme", "non msme",
+        "not a micro", "not small enterprise", "ineligible for msme", "we are not an msme",
+        "not registered as msme", "not registered under msme", "without msme"
+    ]
     is_explicitly_non_msme = any(p in full_text.lower() for p in non_msme_phrases)
     if is_explicitly_non_msme:
         is_msme = False
     else:
-        is_msme = len(udyam_matches) > 0 or ("msme" in full_text.lower() and any(w in full_text.lower() for w in ["registered", "certificate", "udyam", "enterprise", "registration", "status"]))
+        is_msme = len(udyam_matches) > 0 or (
+            "msme" in full_text.lower()
+            and not re.search(r"\b(?:no|not|non|without)\s+msme\b", full_text, re.IGNORECASE)
+            and any(w in full_text.lower() for w in ["registered", "certificate", "udyam", "enterprise", "registration", "status"])
+        )
 
-    # 8. EMD Status, Instrument Amount & Scoped Negation Handling
+    # 8. EMD Status, Instrument ID, Amount & Scoped Negation Handling
     emd_amount_inr = None
-    emd_amt_match = re.search(r"(?:EMD|Bid Security|Bank Guarantee|BG|FDR|Demand Draft|DD)[^\d\n\r]{0,35}?(?:amount|value|of)?[:\s]*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d{2})?)", full_text, re.IGNORECASE)
-    if emd_amt_match:
-        try:
-            val_str = emd_amt_match.group(1).replace(",", "").strip()
-            if val_str:
-                emd_amount_inr = float(val_str)
-        except Exception:
-            emd_amount_inr = None
+    emd_instrument_id = None
 
-    emd_status = "UNRESOLVED" if is_unreadable else "MISSING"
+    # Step A: Negation / missing EMD patterns
     neg_emd_patterns = [
         r"\b(?:no|without|nil)\s+(?:bank\s+guarantee|bg|fdr|demand\s+draft|emd|bid\s+security)\b",
-        r"\b(?:bank\s+guarantee|bg|fdr|demand\s+draft|emd|bid\s+security)\s+(?:is\s+)?(?:not\s+submitted|not\s+provided|missing|nil|not\s+attached)\b"
+        r"\b(?:bank\s+guarantee|bg|fdr|demand\s+draft|emd|bid\s+security)\s+(?:is\s+)?(?:not\s+submitted|not\s+provided|missing|nil|not\s+attached)\b",
+        r"\bemd\s*(?:status)?[:\s]+(?:nil|not\s+provided|missing|exempted\s+without\s+proof)\b"
     ]
     is_explicit_no_emd = any(re.search(p, full_text, re.IGNORECASE) for p in neg_emd_patterns)
-    
+
+    # Step B: Extract EMD Instrument ID (e.g., BG/SBI/2026/8821, PNB/2026/0912, BG-8921)
+    inst_match = re.search(
+        r"(?:Bank\s+Guarantee|BG|FDR|Demand\s+Draft|DD)(?:\s+(?:No\.?|Number|#|Ref\.?|ID))?[:\s]+([A-Z0-9/_-]{4,35})",
+        full_text,
+        re.IGNORECASE
+    )
+    if inst_match:
+        cand_id = inst_match.group(1).strip()
+        if not any(k in cand_id.lower() for k in ["for", "submitted", "issued", "inr", "rs", "copy", "attached", "provided", "amount", "valid"]):
+            if any(c.isdigit() for c in cand_id):
+                emd_instrument_id = cand_id
+
+    if not emd_instrument_id:
+        sec_inst = re.search(r"(?:guarantee|emd|fdr)[^\n\r]{0,40}?\b([A-Z]{2,}[A-Z0-9/\-_]{2,20}\d[A-Z0-9/\-_]*)\b", full_text, re.IGNORECASE)
+        if sec_inst:
+            cand_id = sec_inst.group(1).strip()
+            if not any(k in cand_id.lower() for k in ["for", "submitted", "issued", "inr", "rs"]):
+                emd_instrument_id = cand_id
+
+    # Step C: Extract EMD Amount in INR
+    # Find lines specifically dealing with EMD or Bank Guarantee to avoid cross-field bleed (e.g. Turnover or Total Quote)
+    emd_lines = []
+    lines_list = [l.strip() for l in full_text.split("\n") if l.strip()]
+    for i, line in enumerate(lines_list):
+        if any(k in line.lower() for k in ["emd", "bank guarantee", "bid security", "fdr submitted", "demand draft"]):
+            combined = line
+            if i + 1 < len(lines_list) and not any(h in lines_list[i+1].lower() for h in ["turnover", "pan:", "gstin:", "local content", "warranty", "quote", "total price"]):
+                combined += " " + lines_list[i+1]
+            emd_lines.append(combined)
+
+    # Priority C1: Check Lakh / Crore amounts within scoped EMD clauses
+    for el in emd_lines:
+        if any(h in el.lower() for h in ["turnover", "budget", "estimated cost", "total quote"]):
+            continue
+        lc_m = re.search(r"(?:for|amount|value|of|sum\s+of)?[:\s]*(?:INR|Rs\.?|₹)?\s*([\d.]+)\s*(crore|cr|lakh|lakhs)\b", el, re.IGNORECASE)
+        if lc_m:
+            try:
+                val = float(lc_m.group(1))
+                unit = lc_m.group(2).lower()
+                emd_amount_inr = (val * 10000000.0) if "cr" in unit else (val * 100000.0)
+                break
+            except Exception:
+                pass
+
+    # Priority C2: Explicit numerical currency amount within scoped EMD clauses
+    if emd_amount_inr is None:
+        for el in emd_lines:
+            if any(h in el.lower() for h in ["turnover", "budget", "estimated cost", "total quote"]):
+                continue
+            num_matches = re.findall(r"(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{2})?)", el, re.IGNORECASE)
+            for cand in num_matches:
+                try:
+                    c_val = float(cand.replace(",", ""))
+                    if c_val >= 500 and c_val not in [2024, 2025, 2026, 2027]:
+                        emd_amount_inr = c_val
+                        break
+                except Exception:
+                    pass
+            if emd_amount_inr is not None:
+                break
+
+    # Step D: Determine EMD status
     if is_unreadable:
         emd_status = "UNRESOLVED"
     elif is_explicit_no_emd:
         emd_status = "MISSING"
-    elif ("exempt" in full_text.lower() or "waiver" in full_text.lower()) and is_msme:
+    elif is_msme and ("exempt" in full_text.lower() or "waiver" in full_text.lower() or len(udyam_matches) > 0):
         emd_status = "MSME_EXEMPT"
+    elif emd_amount_inr is not None or emd_instrument_id is not None:
+        emd_status = "SUBMITTED"
     elif any(term in full_text.lower() for term in ["bank guarantee submitted", "bg submitted", "fdr submitted", "demand draft submitted", "submitted emd", "emd submitted", "bg no", "bank guarantee no"]):
         emd_status = "SUBMITTED"
     elif any(term in full_text.lower() for term in ["bank guarantee", "bg no", "fdr", "demand draft"]):
         emd_status = "SUBMITTED"
+    else:
+        emd_status = "MISSING"
 
-    # 9. Warranty Terms & Scoped Duration Parsing (Offer vs Quoted Requirement)
-    # Exclude experience mentions (e.g. "5 years experience. Offered warranty 1 year.")
+    # 9. Warranty Terms, Service Type & Scoped Duration Parsing
     clean_w_text = re.sub(r"\b\d+\s*(?:years?|yrs?)\s+(?:of\s+)?(?:experience|standing|track\s*record)\b", "", full_text, flags=re.IGNORECASE)
     warranty_terms = "Unresolved (Unreadable Document)" if is_unreadable else "Unspecified Warranty"
     warranty_years = None
+    offered_service_type = "Standard"
     bonus_perks = []
 
-    # Priority 1: Match explicit bidder offer declarations (e.g. "Offered warranty: 1 year", "We offer 2 years warranty")
-    w_offer = re.search(r"(?:offered\s+warranty|we\s+offer\s+warranty|warranty\s+offered|bidder\s+offers|quoted\s+warranty|warranty\s+provided|offered)[:\s]+(?:of\s+)?(\d+(?:\.\d+)?)\s*(?:years?|yrs?|months?)", clean_w_text, re.IGNORECASE)
+    # Priority 1: Match explicit bidder offer declarations
+    w_offer = re.search(
+        r"(?:(?:offered|quoted|comprehensive|standard|minimum)?\s*warranty(?:[^\n\r:]*)?[:\s\n]+(?:we\s+(?:provide|offer)(?:\s+a)?\s+)?)?(\d+(?:\.\d+)?)\s*[- ](?:years?|yrs?|months?)\s+([^\n\r.;,)]*(?:warranty|sla|onsite|carry-in)?)",
+        clean_w_text,
+        re.IGNORECASE
+    )
     if not w_offer:
-        # Priority 2: Exclude quoted tender requirement lines (e.g. "Required warranty: 3 years")
         filtered_w_text = re.sub(r"(?:required|mandatory|minimum|tender|rfp|baseline)\s+warranty[^\n.;]*", "", clean_w_text, flags=re.IGNORECASE)
-        w_offer = re.search(r"warranty[:\s]+(?:of\s+)?(\d+(?:\.\d+)?)\s*(?:years?|yrs?|months?)", filtered_w_text, re.IGNORECASE)
+        w_offer = re.search(r"warranty[:\s\n]+(?:of\s+)?(\d+(?:\.\d+)?)\s*(?:years?|yrs?|months?)", filtered_w_text, re.IGNORECASE)
         if not w_offer:
             w_offer = re.search(r"(\d+(?:\.\d+)?)\s*[- ](?:years?|yrs?|months?)\s+(?:comprehensive|onsite|standard|oem|carry-in|carry\s+in)?\s*warranty", filtered_w_text, re.IGNORECASE)
 
@@ -518,12 +614,16 @@ def extract_document_data(file_path: str) -> dict:
             is_24x7 = any(k in clean_w_text.lower() for k in ["24x7", "24/7", "round the clock"])
 
             if is_carry_in:
+                offered_service_type = "Carry-in"
                 coverage_desc = "Carry-in"
             elif is_onsite and is_24x7:
+                offered_service_type = "Onsite"
                 coverage_desc = "Comprehensive 24x7 Onsite"
             elif is_onsite:
+                offered_service_type = "Onsite"
                 coverage_desc = "Comprehensive Onsite"
             else:
+                offered_service_type = "Standard"
                 coverage_desc = "Standard OEM"
 
             yr_str = f"{int(val) if val.is_integer() else val}-Year"
@@ -535,13 +635,14 @@ def extract_document_data(file_path: str) -> dict:
 
     if warranty_years is None and not is_unreadable:
         is_carry_in = any(k in clean_w_text.lower() for k in ["carry-in", "carry in"])
-        coverage_desc = "Carry-in" if is_carry_in else "Comprehensive"
-        if any(k in clean_w_text.lower() for k in ["5-year warranty", "5 year warranty", "60 months warranty"]):
+        offered_service_type = "Carry-in" if is_carry_in else "Onsite"
+        coverage_desc = "Carry-in" if is_carry_in else "Comprehensive Onsite"
+        if any(k in clean_w_text.lower() for k in ["5-year warranty", "5 year warranty", "60 months warranty", "5-year comprehensive"]):
             warranty_terms = f"5-Year {coverage_desc} Warranty"
             warranty_years = 5.0
             if not is_carry_in:
                 bonus_perks.append("5-Year Extended Onsite Warranty")
-        elif any(k in clean_w_text.lower() for k in ["3-year warranty", "3 year warranty", "36 months warranty"]):
+        elif any(k in clean_w_text.lower() for k in ["3-year warranty", "3 year warranty", "36 months warranty", "3-year comprehensive"]):
             warranty_terms = f"3-Year {coverage_desc} Warranty"
             warranty_years = 3.0
         elif any(k in clean_w_text.lower() for k in ["2-year warranty", "2 year warranty", "24 months warranty", "2 years warranty"]):
@@ -553,6 +654,7 @@ def extract_document_data(file_path: str) -> dict:
         elif any(k in clean_w_text.lower() for k in ["6-month warranty", "6 month warranty"]):
             warranty_terms = "6-Month Carry-in Warranty (Sub-standard)"
             warranty_years = 0.5
+            offered_service_type = "Carry-in"
 
     if "32gb" in full_text.lower() and "upgrade" in full_text.lower():
         bonus_perks.append("Free 32GB DDR5 RAM Upgrade (RFP asked for 16GB)")
@@ -603,8 +705,10 @@ def extract_document_data(file_path: str) -> dict:
         "turnover_cr": turnover_cr,
         "emd_status": emd_status,
         "emd_amount_inr": emd_amount_inr,
+        "emd_instrument_id": emd_instrument_id,
         "warranty": warranty_terms,
         "warranty_years": warranty_years,
+        "offered_service_type": offered_service_type,
         "bonus_perks": bonus_perks,
         "local_content_pct": local_content_pct,
         "raw_text_length": len(full_text),

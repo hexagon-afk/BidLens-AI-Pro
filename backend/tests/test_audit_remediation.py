@@ -15,7 +15,13 @@ import os
 import sys
 import asyncio
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+TEST_DIR = os.path.dirname(os.path.abspath(__file__))
+BACKEND_DIR = os.path.dirname(TEST_DIR)
+PROJECT_ROOT = os.path.dirname(BACKEND_DIR)
+
+sys.path.insert(0, BACKEND_DIR)
+
+from orchestrator.orchestrator import run_full_audit
 
 from orchestrator.rule_engine import evaluate_compliance
 from orchestrator.ai_processing import extract_document_data, extract_tender_rfp_data
@@ -353,7 +359,167 @@ class TestAuditRemediationGates(unittest.TestCase):
 
         asyncio.run(run_test())
 
+    def test_gate_22_unmocked_end_to_end_sample_evaluation(self):
+        """Gate 22: Un-mocked end-to-end sample PDF evaluation strictly from Tender RFP data."""
+        async def run_test():
+            tender_path = os.path.join(BACKEND_DIR, "data", "sample_bids", "Tender_RFP_GeM_Computers.pdf")
+            self.assertTrue(os.path.exists(tender_path))
+            t_data = extract_tender_rfp_data(tender_path)
+            self.assertEqual(t_data.get("budget_inr"), 5000000.0)
+            self.assertEqual(t_data.get("emd_inr"), 100000.0)
+            self.assertEqual(t_data.get("min_turnover_cr"), 1.5)
+            self.assertEqual(t_data.get("min_local_content_pct"), 50)
+            self.assertEqual(t_data.get("min_warranty_years"), 3.0)
+            self.assertEqual(t_data.get("required_service_type"), "Onsite")
+
+            tender_reqs = {
+                "budget_inr": t_data.get("budget_inr"),
+                "min_turnover_cr": t_data.get("min_turnover_cr"),
+                "emd_required_inr": t_data.get("emd_inr"),
+                "min_local_content_pct": t_data.get("min_local_content_pct"),
+                "min_warranty_years": t_data.get("min_warranty_years"),
+                "required_service_type": t_data.get("required_service_type")
+            }
+
+            bids_dir = os.path.join(BACKEND_DIR, "data", "sample_bids")
+            # 1. ApexLabs MSME
+            apex_res = await run_full_audit(os.path.join(bids_dir, "Bid_ApexLabs_MSME.pdf"), tender_reqs)
+            self.assertEqual(apex_res["overall_status"], "COMPLIANT")
+            self.assertTrue(apex_res["is_compliant"])
+            self.assertEqual(apex_res["compliance_summary"]["exempt"], 2)
+
+            # 2. MegaTech BigBrand
+            mega_res = await run_full_audit(os.path.join(bids_dir, "Bid_MegaTech_BigBrand.pdf"), tender_reqs)
+            self.assertEqual(mega_res["overall_status"], "COMPLIANT")
+            self.assertTrue(mega_res["is_compliant"])
+            self.assertEqual(mega_res["compliance_summary"]["passed"], 5)
+
+            # 3. GlobalCorp Ineligible
+            glob_res = await run_full_audit(os.path.join(bids_dir, "Bid_GlobalCorp_Ineligible.pdf"), tender_reqs)
+            self.assertEqual(glob_res["overall_status"], "NON_COMPLIANT")
+            self.assertFalse(glob_res["is_compliant"])
+            self.assertEqual(glob_res["compliance_summary"]["failed"], 5)
+
+            # 4. GlobalCorp Rectified
+            rect_res = await run_full_audit(os.path.join(bids_dir, "Bid_GlobalCorp_Rectified_ReEvaluation.pdf"), tender_reqs)
+            self.assertEqual(rect_res["overall_status"], "COMPLIANT")
+            self.assertTrue(rect_res["is_compliant"])
+            self.assertEqual(rect_res["compliance_summary"]["passed"], 5)
+
+        asyncio.run(run_test())
+
+    def test_gate_23_tender_emd_percentage_isolated_from_delivery_penalty(self):
+        """Gate 23: Delivery penalty percentage does not create an EMD requirement."""
+        clean_text = "Estimated Tender Value: INR 50,00,000.\nDelivery penalty 2% per week for delay.\nEMD: Nil."
+        # Priority check: Nil EMD should not be overridden by generic 2% delivery penalty
+        # Extract from dummy file
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", delete=False, suffix=".txt") as tf:
+            tf.write(clean_text)
+            temp_path = tf.name
+
+        try:
+            res = extract_tender_rfp_data(temp_path)
+            self.assertEqual(res.get("budget_inr"), 5000000.0)
+            self.assertEqual(res.get("emd_inr"), 0.0)
+        finally:
+            os.remove(temp_path)
+
+    def test_gate_24_emd_instrument_id_and_units_extraction(self):
+        """Gate 24: Separate EMD instrument ID from amount and support Lakh/Crore units."""
+        import tempfile
+        # Test A: Instrument ID with slashes and years
+        text_a = "Bank Guarantee No. BG/SBI/2026/8821 for INR 1,00,000 issued by State Bank of India."
+        with tempfile.NamedTemporaryFile("w", delete=False, suffix=".txt") as tf:
+            tf.write(text_a)
+            path_a = tf.name
+
+        try:
+            res_a = extract_document_data(path_a)
+            self.assertEqual(res_a.get("emd_instrument_id"), "BG/SBI/2026/8821")
+            self.assertEqual(res_a.get("emd_amount_inr"), 100000.0)
+            self.assertEqual(res_a.get("emd_status"), "SUBMITTED")
+        finally:
+            os.remove(path_a)
+
+        # Test B: Amount in Lakhs
+        text_b = "EMD Bank Guarantee of 2.5 Lakhs submitted with ID BG-99128."
+        with tempfile.NamedTemporaryFile("w", delete=False, suffix=".txt") as tf:
+            tf.write(text_b)
+            path_b = tf.name
+
+        try:
+            res_b = extract_document_data(path_b)
+            self.assertEqual(res_b.get("emd_amount_inr"), 250000.0)
+            self.assertEqual(res_b.get("emd_status"), "SUBMITTED")
+        finally:
+            os.remove(path_b)
+
+    def test_gate_25_submitted_emd_with_unknown_amount_returns_needs_review(self):
+        """Gate 25: A submitted EMD with unverified face value returns NEEDS_REVIEW, never PASS."""
+        vendor_data = {
+            "vendor_name": "Test Corp",
+            "is_msme": False,
+            "udyam": None,
+            "emd_status": "SUBMITTED",
+            "emd_amount_inr": None,  # Amount unknown!
+            "emd_instrument_id": "BG-UNKNOWN-001"
+        }
+        tender_reqs = {"emd_required_inr": 100000.0}
+        clauses = evaluate_compliance(vendor_data, tender_reqs)
+        emd_clause = next(c for c in clauses if c["clause_id"] == "GFR-170-EMD")
+        self.assertEqual(emd_clause["status"], "NEEDS_REVIEW")
+        self.assertIn("officer verification required", emd_clause["remedy"].lower())
+
+    def test_gate_26_carry_in_warranty_fails_onsite_requirement(self):
+        """Gate 26: 5-Year Carry-in warranty fails a 3-Year Onsite warranty requirement."""
+        vendor_data = {
+            "warranty": "5-Year Carry-in Warranty",
+            "warranty_years": 5.0,
+            "offered_service_type": "Carry-in"
+        }
+        tender_reqs = {
+            "min_warranty_years": 3.0,
+            "required_service_type": "Onsite"
+        }
+        clauses = evaluate_compliance(vendor_data, tender_reqs)
+        w_clause = next(c for c in clauses if c["clause_id"] == "SPEC-WARRANTY")
+        self.assertEqual(w_clause["status"], "FAIL")
+        self.assertIn("Carry-in", w_clause["evidence"])
+        self.assertIn("mismatch", w_clause["evidence"].lower())
+
+    def test_gate_27_unrecognized_clause_status_forces_needs_review(self):
+        """Gate 27: Unrecognized clause status in compute_unified_audit_verdict returns NEEDS_REVIEW."""
+        clause_results = [
+            {"clause_id": "C-1", "status": "PASS"},
+            {"clause_id": "C-2", "status": "UNKNOWN_MANUAL_STATE"}
+        ]
+        verdict = compute_unified_audit_verdict(clause_results, [], extracted={})
+        self.assertEqual(verdict["overall_status"], "NEEDS_REVIEW")
+        self.assertFalse(verdict["is_compliant"])
+
+    def test_gate_28_durable_append_only_override_trail_and_agent_review(self):
+        """Gate 28: Overrides append to JSONL trail and agent review produces structured tool calls."""
+        from fastapi.testclient import TestClient
+        from main import app
+
+        client = TestClient(app)
+
+        # Agent review endpoint
+        res = client.post("/audit/agent/review/Bid_MegaTech_BigBrand.pdf")
+        self.assertEqual(res.status_code, 200)
+        review = res.json().get("review", {})
+        self.assertIn("agent_trajectory", review)
+        self.assertGreater(len(review["agent_trajectory"]), 5)
+        self.assertEqual(review.get("officer_recommendation", {}).get("final_verdict"), "ACCEPT_FOR_FINANCIAL_OPENING")
+
+        # Override trail endpoint
+        trail_res = client.get("/audit/overrides/trail")
+        self.assertEqual(trail_res.status_code, 200)
+        self.assertIn("events", trail_res.json())
+
 
 if __name__ == '__main__':
     unittest.main()
+
 

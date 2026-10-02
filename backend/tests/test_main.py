@@ -35,8 +35,10 @@ class TestMainApplication(unittest.TestCase):
         self.assertIn("SOVEREIGN_OFFLINE_EDGE", data.get("mode", ""))
         self.assertEqual(data.get("cloud_data_retention"), "DISABLED (AIR-GAPPED COMPATIBLE)")
         sec = data.get("security_integrity", {})
-        self.assertEqual(sec.get("cryptographic_fingerprinting"), "SHA-256 ENABLED")
-        self.assertEqual(sec.get("cert_in_compliance"), "PASS")
+        self.assertIn("SHA-256", sec.get("cryptographic_fingerprinting", ""))
+        self.assertEqual(sec.get("guidelines_alignment"), "PROTOTYPE_BASELINE")
+        self.assertNotIn("tamper_proof_audit_log", sec)
+        self.assertNotIn("cert_in_compliance", sec)
 
     def test_all_routers_mounted(self):
         """Verify document, audit, and review routers are mounted in OpenAPI schema."""

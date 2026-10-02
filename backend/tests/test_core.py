@@ -21,7 +21,9 @@ class TestBidLensCore(unittest.TestCase):
         self.assertEqual(health["system_status"], "OPERATIONAL")
         self.assertIn("SOVEREIGN", health["mode"])
         self.assertEqual(health["data_consumption_kb"], 0.0)
-        self.assertEqual(health["security_integrity"]["cert_in_compliance"], "PASS")
+        self.assertEqual(health["security_integrity"]["guidelines_alignment"], "PROTOTYPE_BASELINE")
+        self.assertNotIn("tamper_proof_audit_log", health["security_integrity"])
+        self.assertNotIn("cert_in_compliance", health["security_integrity"])
 
     def test_msme_turnover_waiver_exemption(self):
         """Verify GFR Rule 160 & MSME Order 2012 prior turnover waiver."""

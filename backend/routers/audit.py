@@ -11,6 +11,7 @@ from orchestrator.orchestrator import run_full_audit, compute_unified_audit_verd
 from evidence_risk.graph_engine import build_compliance_knowledge_graph
 from utils.pdf_generator import generate_certified_audit_pdf
 import os
+import json
 import datetime
 
 router = APIRouter()
@@ -27,14 +28,24 @@ SAMPLE_DIRS = [
     os.path.join(BACKEND_DIR, "..", "data", "sample_bids"),
 ]
 SIG_FILE = os.path.join(UPLOAD_DIR, "officer_signature.png")
+OVERRIDE_TRAIL_FILE = os.path.join(REPORTS_DIR, "audit_override_trail.jsonl")
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(REPORTS_DIR, exist_ok=True)
 
 AUDIT_CACHE: Dict[str, Any] = {}
 AUDIT_OVERRIDES: Dict[str, Dict[str, Any]] = {}  # bid_id -> { clause_id -> override_info }
-AUDIT_OVERRIDE_EVENTS: List[Dict[str, Any]] = []  # append-only event log
+AUDIT_OVERRIDE_EVENTS: List[Dict[str, Any]] = []  # in-memory cache
 ACTIVE_TENDER_CRITERIA: Dict[str, Any] = {}  # tender_id -> criteria
+
+
+def append_override_event_to_disk(event: dict):
+    """Appends an immutable audit event to local append-only JSONL storage."""
+    try:
+        with open(OVERRIDE_TRAIL_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(event) + "\n")
+    except Exception as e:
+        print(f"[AUDIT LOG WARNING] Failed to persist override event: {e}")
 
 ValidOverrideStatus = Literal["PASS", "FAIL", "EXEMPT", "NEEDS_REVIEW", "NOT_APPLICABLE"]
 
@@ -143,12 +154,15 @@ def reset_vendor_overrides(bid_id: str):
     if bid_id in AUDIT_OVERRIDES:
         AUDIT_OVERRIDES.pop(bid_id, None)
 
-    AUDIT_OVERRIDE_EVENTS.append({
+    reset_event = {
+        "event_id": f"RST-{int(datetime.datetime.now().timestamp() * 1000)}",
         "bid_id": bid_id,
         "action": "RESET",
         "message": f"All overrides for {bid_id} cleared; machine verdicts restored.",
         "timestamp": datetime.datetime.now().strftime("%d-%b-%Y %H:%M:%S")
-    })
+    }
+    AUDIT_OVERRIDE_EVENTS.append(reset_event)
+    append_override_event_to_disk(reset_event)
 
     if bid_id in AUDIT_CACHE:
         cached = AUDIT_CACHE[bid_id]
@@ -259,7 +273,8 @@ def record_clause_override(payload: ClauseOverridePayload):
         "timestamp": timestamp_str
     }
 
-    AUDIT_OVERRIDE_EVENTS.append({
+    override_event = {
+        "event_id": f"OVR-{int(datetime.datetime.now().timestamp() * 1000)}",
         "bid_id": bid_id,
         "clause_id": payload.clause_id,
         "original_status": original_status,
@@ -267,7 +282,9 @@ def record_clause_override(payload: ClauseOverridePayload):
         "justification": payload.justification.strip(),
         "officer_name": payload.officer_name,
         "timestamp": timestamp_str
-    })
+    }
+    AUDIT_OVERRIDE_EVENTS.append(override_event)
+    append_override_event_to_disk(override_event)
 
     # Recalculate summary metrics and dependent outputs
     extracted = cached_audit.get("branch_a_extracted_data", {})
@@ -350,3 +367,80 @@ def download_audit_pdf(
         media_type="application/pdf",
         filename=download_filename
     )
+
+
+@router.get("/overrides/trail")
+def get_audit_override_trail():
+    """
+    Returns the durable, append-only supervisory audit override event trail from JSONL storage.
+    """
+    events = []
+    if os.path.exists(OVERRIDE_TRAIL_FILE):
+        try:
+            with open(OVERRIDE_TRAIL_FILE, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip():
+                        events.append(json.loads(line.strip()))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to read audit override trail: {e}")
+    else:
+        events = list(AUDIT_OVERRIDE_EVENTS)
+
+    return {
+        "status": "SUCCESS",
+        "trail_file": "audit_override_trail.jsonl",
+        "total_events": len(events),
+        "events": events
+    }
+
+
+@router.post("/agent/review/{bid_id}")
+async def run_agent_evidence_review(bid_id: str):
+    """
+    Executes autonomous agentic review with inspectable multi-step tool calls
+    (inspect_document_evidence, evaluate_statutory_discrepancy, synthesize_officer_recommendation).
+    """
+    cached_audit = None
+    if bid_id in AUDIT_CACHE:
+        cached_audit = AUDIT_CACHE[bid_id]
+    else:
+        target_file = None
+        for sdir in [UPLOAD_DIR] + SAMPLE_DIRS:
+            if os.path.exists(sdir):
+                for f in os.listdir(sdir):
+                    if bid_id.lower() in f.lower() or f.lower() == bid_id.lower():
+                        target_file = os.path.join(sdir, f)
+                        break
+            if target_file:
+                break
+        if not target_file or not os.path.exists(target_file):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Audit record or document file for '{bid_id}' not found."
+            )
+        cached_audit = await run_full_audit(target_file)
+        AUDIT_CACHE[bid_id] = cached_audit
+
+    extracted = cached_audit.get("branch_a_extracted_data", {})
+    full_text = extracted.get("raw_text", "")
+    clauses = cached_audit.get("clause_level_decisions", [])
+    contradictions = cached_audit.get("contradictions_detected", [])
+    tender_reqs = cached_audit.get("tender_requirements", {})
+
+    from orchestrator.llm_agent import EvidenceReviewAgent
+    agent = EvidenceReviewAgent()
+    review_output = await agent.review_bid_submission(
+        bid_id=bid_id,
+        full_text=full_text,
+        tender_requirements=tender_reqs,
+        extracted_data=extracted,
+        clause_results=clauses,
+        contradictions=contradictions
+    )
+
+    return {
+        "status": "SUCCESS",
+        "bid_id": bid_id,
+        "review": review_output
+    }
+

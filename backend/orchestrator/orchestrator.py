@@ -87,19 +87,21 @@ def compute_unified_audit_verdict(
     Synchronizes clause results, identity contradictions, summary counts, overall status,
     risk tiers, and executive summaries from a single source of truth.
     """
+    VALID_STATUSES = {"PASS", "FAIL", "EXEMPT", "NOT_APPLICABLE", "NEEDS_REVIEW"}
     pass_count = sum(1 for c in clause_results if c.get("status") == "PASS")
     fail_count = sum(1 for c in clause_results if c.get("status") == "FAIL")
     exempt_count = sum(1 for c in clause_results if c.get("status") == "EXEMPT")
     needs_review_count = sum(1 for c in clause_results if c.get("status") == "NEEDS_REVIEW")
     not_applicable_count = sum(1 for c in clause_results if c.get("status") == "NOT_APPLICABLE")
 
+    has_invalid_status = any(c.get("status") not in VALID_STATUSES for c in clause_results)
     has_critical_contra = any(c.get("severity") == "CRITICAL" for c in contradictions)
     has_high_contra = any(c.get("severity") == "HIGH" for c in contradictions)
 
     # Any statutory failure or critical identity fraud prevents compliance
     if fail_count > 0 or has_critical_contra:
         overall_status = "NON_COMPLIANT"
-    elif needs_review_count > 0 or has_high_contra or len(clause_results) == 0:
+    elif has_invalid_status or needs_review_count > 0 or has_high_contra or len(clause_results) == 0:
         overall_status = "NEEDS_REVIEW"
     elif (pass_count + exempt_count + not_applicable_count) == 0:
         overall_status = "NEEDS_REVIEW"
