@@ -38,7 +38,7 @@ def detect_cross_document_contradictions(extracted_data: dict, govt_verification
 
     # ── 2. PAN inside GSTIN vs Declared PAN Discrepancy ───────
     if not govt_verification.get("pan_gstin_consistent", True):
-        note = govt_verification.get("consistency_note", "Discrepancy detected.")
+        note = govt_verification.get("consistency_note") or "Discrepancy detected between GSTIN and declared PAN."
         contradictions.append({
             "contradiction_id": "CONTRA-GST-PAN-02",
             "type": "GSTIN_EMBEDDED_PAN_MISMATCH",
@@ -135,4 +135,5 @@ def calculate_claim_integrity_score(extracted_data: dict, contradictions: list) 
         "description": desc,
         "unsubstantiated_claims_count": len([c for c in contradictions if "UNSUBSTANTIATED" in c.get("type", "") or "UNVERIFIED" in c.get("type", "")])
     }
+
 
