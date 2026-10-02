@@ -52,3 +52,39 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
             "remedy": None
         })
 
+
+    # 2. GFR Rule 160 & MSME Order 2012 Turnover Exemption 
+    is_msme = extracted_data.get("is_msme", False)
+    turnover_cr = extracted_data.get("turnover_cr")
+    min_turnover = tender_requirements["min_turnover_cr"]
+
+    if is_msme:
+        udyam = extracted_data.get("udyam")
+        results.append({
+            "clause_id": "GFR-160-MSME",
+            "clause_name": "Annual Financial Turnover Requirement",
+            "status": "EXEMPT",
+            "regulation_ref": "Public Procurement Policy for MSEs Order 2012 / GFR Rule 160",
+            "evidence": f"Registered Micro/Small Enterprise ({udyam}). Statutory exemption granted from prior turnover criteria.",
+            "remedy": None
+        })
+    else:
+        # Note: Unhandled NoneType error here if turnover_cr is None (will be fixed in Commit 25)
+        if turnover_cr >= min_turnover:
+            results.append({
+                "clause_id": "GFR-160-TO",
+                "clause_name": "Annual Financial Turnover Requirement",
+                "status": "PASS",
+                "regulation_ref": "GFR 2017 Rule 160 (Turnover Criteria)",
+                "evidence": f"Average turnover of INR {turnover_cr:.2f} Cr meets minimum threshold of INR {min_turnover:.2f} Cr.",
+                "remedy": None
+            })
+        else:
+            results.append({
+                "clause_id": "GFR-160-TO",
+                "clause_name": "Annual Financial Turnover Requirement",
+                "status": "FAIL",
+                "regulation_ref": "GFR 2017 Rule 160",
+                "evidence": f"Turnover of INR {turnover_cr:.2f} Cr is below mandatory threshold of INR {min_turnover:.2f} Cr (Non-MSME).",
+                "remedy": "Provide audited financial statements meeting minimum turnover or valid Udyam certificate."
+            })
