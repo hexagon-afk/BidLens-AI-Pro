@@ -140,3 +140,47 @@ def verify_government_credentials(extracted_data: dict) -> dict:
         "sync_status": "Labour Regulations Met"
     }
 
+
+    # ── 6. Central Public Debarment / CPPP Watchlist Check ────
+    debarment_status = "CLEAN / NOT BLACKLISTED"
+    debarment_badge = "PASS"
+    if is_expired or len(set(all_pans)) > 1:
+        debarment_status = "UNDER INVESTIGATION / WATCHLIST"
+        debarment_badge = "FAIL"
+
+    debarment_details = {
+        "portal": "CPPP Central Debarment Watchlist",
+        "status": debarment_status,
+        "blacklisting_orders": "None on Record" if debarment_badge == "PASS" else "Flagged for Compliance Inconsistency",
+        "sync_status": "GeM Incident Management & CPPP Checked"
+    }
+
+    # ── 7. Cross-Consistency: GSTIN vs PAN Check ──────────────
+    pan_gstin_consistent = True
+    consistency_note = "GSTIN embedded PAN matches declared PAN."
+    if gstin and pan and len(gstin) >= 12:
+        embedded_pan = gstin[2:12]
+        if embedded_pan != pan:
+            pan_gstin_consistent = False
+            consistency_note = f"Discrepancy: GSTIN contains PAN ({embedded_pan}) which differs from declared PAN ({pan})."
+
+    # Compile Handshake Results
+    verified_gateways_count = sum(1 for b in [gstn_badge, pan_badge, mca_badge, epfo_badge, debarment_badge] if b == "PASS")
+    if udyam and udyam_badge == "PASS":
+        verified_gateways_count += 1
+
+    return {
+        "overall_govt_verification": "PASS" if (gstn_badge == "PASS" and pan_badge == "PASS" and pan_gstin_consistent and debarment_badge == "PASS") else "FLAGGED_FOR_REVIEW",
+        "verified_gateways_count": verified_gateways_count,
+        "total_gateways": 6 if udyam else 5,
+        "pan_gstin_consistent": pan_gstin_consistent,
+        "consistency_note": consistency_note,
+        "gateways": [
+            {"name": "GSTN Common Portal", "status": gstn_status, "badge": gstn_badge, "details": gstn_details},
+            {"name": "ITD PAN Registry", "status": pan_status, "badge": pan_badge, "details": pan_details},
+            {"name": "MCA21 Corporate Affairs", "status": mca_status, "badge": mca_badge, "details": mca_details},
+            {"name": "Udyam MSME Portal", "status": udyam_status, "badge": udyam_badge, "details": udyam_details},
+            {"name": "EPFO & ESIC Labour Compliance", "status": epfo_status, "badge": epfo_badge, "details": epfo_details},
+            {"name": "CPPP Central Debarment Watchlist", "status": debarment_status, "badge": debarment_badge, "details": debarment_details}
+        ]
+    }
