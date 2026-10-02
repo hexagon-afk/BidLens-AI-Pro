@@ -23,13 +23,15 @@ def verify_government_credentials(extracted_data: dict) -> dict:
         if gstin_valid_format:
             state_code = gstin[:2]
             pan_in_gst = gstin[2:12]
-            gstn_status = "VERIFIED_ACTIVE"
+            is_expired = extracted_data.get("gstin_expired", False)
+            
+            gstn_status = "INVALID_STATUS" if is_expired else "VERIFIED_ACTIVE"
             gstn_details = {
                 "gstin": gstin,
                 "valid_format": True,
                 "state_code": state_code,
                 "embedded_pan": pan_in_gst,
-                "taxpayer_status": "ACTIVE",
+                "taxpayer_status": "CANCELLED/EXPIRED" if is_expired else "ACTIVE",
                 "simulated_portal_sync": "Synced with GSTN Common Portal"
             }
         else:
@@ -46,7 +48,7 @@ def verify_government_credentials(extracted_data: dict) -> dict:
             entity_types = {
                 "C": "Company",
                 "P": "Individual / Proprietorship",
-                "F": "Partnership Firm",
+                "F": "Firm / LLP",
                 "A": "Association of Persons",
                 "T": "Trust",
                 "L": "Local Authority"
