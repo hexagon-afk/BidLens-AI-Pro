@@ -200,3 +200,65 @@ def extract_document_text(file_path: str) -> tuple[str, int, str]:
 
     return full_text, page_count, file_label
 
+
+
+def extract_document_data(file_path: str) -> dict:
+    """
+    Universal vendor proposal & BoQ data extractor.
+    Extracts Vendor Identity, GSTIN, PAN, Udyam ID, Total Quote, Turnover, and Warranty.
+    """
+    full_text, page_count, file_type = extract_document_text(file_path)
+
+    # 1. Match GSTINs (Standard & Whitespace-Resilient)
+    no_space_text = re.sub(r"\s+", "", full_text.upper())
+    gstin_matches = re.findall(r"\b\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}\b", full_text)
+    if not gstin_matches:
+        gstin_matches = re.findall(r"\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]", no_space_text)
+
+    # 2. Match PANs (Standard & Whitespace-Resilient)
+    pan_matches = re.findall(r"\b[A-Z]{5}\d{4}[A-Z]{1}\b", full_text)
+    if not pan_matches:
+        pan_matches = re.findall(r"[A-Z]{5}\d{4}[A-Z]", no_space_text)
+    
+    clean_pans = []
+    for p in pan_matches:
+        if p not in clean_pans:
+            clean_pans.append(p)
+
+    # 3. Match Udyam Registration IDs (MSME Exemption Proof)
+    udyam_matches = re.findall(r"\bUDYAM-[A-Z]{2}-\d{2}-\d{7}\b", full_text)
+    if not udyam_matches:
+        udyam_matches = re.findall(r"UDYAM-[A-Z]{2}-\d{2}-\d{7}", no_space_text)
+
+    # 4. Extract Legal Entity / Vendor Name
+    vendor_name = "Unknown Vendor"
+    
+    # Try explicit bidder markers
+    lines = [line.strip() for line in full_text.split("\n") if line.strip()]
+    ignore_phrases = ["public procurement", "under the", "pursuant to", "government of", "ministry of", "order 2017", "make in india", "gfr 2017", "general financial rules", "department of"]
+    
+    bidder_name_match = re.search(r"(?:Name of (?:the )?Bidder|Bidder Name|Company Name|Vendor Name|Submitted by|Supplier)[:\s]*([^\n\r,]+)", full_text, re.IGNORECASE)
+    if bidder_name_match and len(bidder_name_match.group(1).strip()) > 3:
+        cand_name = bidder_name_match.group(1).strip()
+        if not any(p in cand_name.lower() for p in ignore_phrases):
+            vendor_name = cand_name
+
+    if vendor_name == "Unknown Vendor":
+        for line in lines:
+            if any(p in line.lower() for p in ignore_phrases):
+                continue
+            if any(term in line.lower() for term in ["pvt ltd", "private limited", "llp", "technologies", "devices", "corporation", "enterprises", "solutions", "systems", "industries", "infotech", "hardware", "labs"]):
+                cand = line.replace("Commercial & Technical Proposal", "").replace("Technical & Commercial Bid", "").replace("Bid Submission", "").replace("--- Scanned Image (", "").strip(" -:)")
+                if len(cand) > 3 and len(cand) < 60:
+                    vendor_name = cand
+                    break
+
+    if vendor_name == "Unknown Vendor" and len(lines) > 0:
+        first_meaningful = [l for l in lines if not l.startswith("---") and len(l) > 3 and not any(k in l.lower() for k in ["page", "proposal", "tender", "bid"] + ignore_phrases)]
+        if first_meaningful:
+            vendor_name = first_meaningful[0].strip(" -:")[:50]
+
+    if vendor_name == "Unknown Vendor" or any(p in vendor_name.lower() for p in ignore_phrases):
+        base = os.path.splitext(os.path.basename(file_path))[0].replace("Bid_", "").replace("BID_", "").replace("_", " ")
+        vendor_name = re.sub(r"[a-f0-9-]{36}_?", "", base).strip()
+
