@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   async rewrites() {
-    const backendUrl = process.env.BACKEND_PROXY_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'https://bidlens-ai.onrender.com';
+    const backendUrl = process.env.BACKEND_PROXY_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'https://bidlens-ai-pro.onrender.com';
     return [
       {
         source: '/audit/:path*',

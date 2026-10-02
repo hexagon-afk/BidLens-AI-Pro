@@ -7,7 +7,7 @@ const getBackendUrl = () => {
     const saved = localStorage.getItem('bidlens_backend_url');
     if (saved && saved.trim()) return saved.trim().replace(/\/+$/, '');
   }
-  return (process.env.NEXT_PUBLIC_BACKEND_URL || 'https://bidlens-ai.onrender.com').trim().replace(/\/+$/, '');
+  return (process.env.NEXT_PUBLIC_BACKEND_URL || 'https://bidlens-ai-pro.onrender.com').trim().replace(/\/+$/, '');
 };
 
 export default function Home() {

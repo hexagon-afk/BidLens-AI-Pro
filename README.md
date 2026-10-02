@@ -8,15 +8,15 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111.0-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com)
 [![Vercel Deployment](https://img.shields.io/badge/Vercel-Frontend%20Live-000000.svg?logo=vercel)](https://bidlens-ai.vercel.app)
-[![Render Cloud Backend](https://img.shields.io/badge/Render-Backend%20Live-46E3B7.svg?logo=render)](https://bidlens-ai.onrender.com/system/health)
+[![Render Cloud Backend](https://img.shields.io/badge/Render-Backend%20Live-46E3B7.svg?logo=render)](https://bidlens-ai-pro.onrender.com/system/health)
 [![GFR 2017 Compliant](https://img.shields.io/badge/GFR%202017-Validated-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![SIH 2026](https://img.shields.io/badge/SIH-2026-orange.svg)]()
 
 > 🌐 **Live Public Prototype:** [https://bidlens-ai.vercel.app](https://bidlens-ai.vercel.app)  
-> ⚡ **Live Sovereign Backend API:** [https://bidlens-ai.onrender.com](https://bidlens-ai.onrender.com)  
-> 📚 **Interactive Swagger API Docs:** [https://bidlens-ai.onrender.com/docs](https://bidlens-ai.onrender.com/docs)  
-> 🛡️ **Edge System Health Check:** [https://bidlens-ai.onrender.com/system/health](https://bidlens-ai.onrender.com/system/health)
+> ⚡ **Live Sovereign Backend API:** [https://bidlens-ai-pro.onrender.com](https://bidlens-ai-pro.onrender.com)  
+> 📚 **Interactive Swagger API Docs:** [https://bidlens-ai-pro.onrender.com/docs](https://bidlens-ai-pro.onrender.com/docs)  
+> 🛡️ **Edge System Health Check:** [https://bidlens-ai-pro.onrender.com/system/health](https://bidlens-ai-pro.onrender.com/system/health)
 
 ---
 
