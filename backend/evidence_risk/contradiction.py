@@ -75,7 +75,7 @@ def detect_cross_document_contradictions(extracted_data: dict, govt_verification
 
     # ── 5. Unsubstantiated Make in India Self-Declaration ─────
     mii_claimed = ("make in india" in raw_text or "class-1" in raw_text or "local supplier" in raw_text)
-    if mii_claimed and local_content_pct == 0:
+    if mii_claimed and (local_content_pct is None or local_content_pct == 0):
         contradictions.append({
             "contradiction_id": "CONTRA-FRAUD-MII-05",
             "type": "UNSUBSTANTIATED_MII_CLAIM",
@@ -135,5 +135,6 @@ def calculate_claim_integrity_score(extracted_data: dict, contradictions: list) 
         "description": desc,
         "unsubstantiated_claims_count": len([c for c in contradictions if "UNSUBSTANTIATED" in c.get("type", "") or "UNVERIFIED" in c.get("type", "")])
     }
+
 
 
