@@ -26,7 +26,7 @@ class OfficialReportCanvas(canvas.Canvas):
         self._startPage()
 
     def save(self):
-        num_pages = len(self._saved_page_states)
+        num_pages = max(1, len(self._saved_page_states))
         for state in self._saved_page_states:
             self.__dict__.update(state)
             self._draw_decorations(num_pages)
@@ -65,6 +65,10 @@ def generate_certified_audit_pdf(
     Builds a clean, official black-and-white PDF audit report with integrated Supervisory Override Log
     and manual physical sign-off box with smooth document flow (no awkward empty page gaps).
     """
+    out_dir = os.path.dirname(os.path.abspath(output_filepath))
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+
     doc = SimpleDocTemplate(
         output_filepath,
         pagesize=letter,
@@ -137,12 +141,15 @@ def generate_certified_audit_pdf(
     contradictions = audit_data.get("contradictions_detected", [])
     govt = audit_data.get("government_verification", {})
 
-    vendor_name = file_info.get("vendor_name", "Vendor Bid Proposal")
+    vendor_name = file_info.get("vendor_name", "Vendor Legal Entity")
     filename = file_info.get("filename", "document.pdf")
     status_text = comp_sum.get("overall_status", "PENDING")
     risk_tier = comp_sum.get("risk_tier", "LOW")
     eval_officer = officer_name or "Procurement Officer"
     eval_designation = officer_designation or "Senior Procurement Officer"
+
+    risk_score_raw = risk_info.get('risk_score')
+    risk_score_pct = (risk_score_raw if risk_score_raw is not None else 0.0) * 100
 
     # ── 1. Document Title & Header ────────────────────────────
     story.append(Paragraph("BID EVALUATION & STATUTORY COMPLIANCE AUDIT DOSSIER", title_style))
@@ -157,7 +164,7 @@ def generate_certified_audit_pdf(
         ],
         [
             Paragraph(f"<b>Compliance Verdict:</b> <b>{status_text}</b>", body_style),
-            Paragraph(f"<b>Rejection Risk Tier:</b> <b>{risk_tier}</b> (Score: {risk_info.get('risk_score', 0.0)*100:.0f}%)", body_style),
+            Paragraph(f"<b>Rejection Risk Tier:</b> <b>{risk_tier}</b> (Score: {risk_score_pct:.0f}%)", body_style),
         ],
         [
             Paragraph(f"<b>Total Clauses Audited:</b> {comp_sum.get('total_clauses_checked', 0)} ({comp_sum.get('passed', 0)} Passed, {comp_sum.get('exempt', 0)} Exempt, {comp_sum.get('failed', 0)} Failed)", body_style),
@@ -258,11 +265,14 @@ def generate_certified_audit_pdf(
         if officer_overrides and cid in officer_overrides:
             st = f"{officer_overrides[cid].get('status', st)} (Overridden)"
 
+        reg_ref = str(c.get('regulation_ref', 'N/A') or 'N/A').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        evidence_txt = str(c.get('evidence', 'N/A') or 'N/A').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        c_name = str(c.get("clause_name", "") or "").replace('&', '&amp;')
         clause_table_data.append([
             Paragraph(f"<b>{cid}</b>", body_style),
-            Paragraph(c.get("clause_name", ""), body_style),
+            Paragraph(c_name, body_style),
             Paragraph(f"<b>{st}</b>", body_style),
-            Paragraph(f"<b>Rule:</b> {c.get('regulation_ref')}<br/><b>Evidence:</b> {c.get('evidence')}", body_style)
+            Paragraph(f"<b>Rule:</b> {reg_ref}<br/><b>Evidence:</b> {evidence_txt}", body_style)
         ])
 
     t_clauses = Table(clause_table_data, colWidths=[1.0*inch, 1.8*inch, 0.9*inch, 3.7*inch])
