@@ -88,3 +88,56 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
                 "evidence": f"Turnover of INR {turnover_cr:.2f} Cr is below mandatory threshold of INR {min_turnover:.2f} Cr (Non-MSME).",
                 "remedy": "Provide audited financial statements meeting minimum turnover or valid Udyam certificate."
             })
+
+    # ── 3. GFR Rule 170 (Earnest Money Deposit - EMD) ─────────
+    emd_status = extracted_data.get("emd_status")
+    if emd_status == "MSME_EXEMPT" or is_msme:
+        results.append({
+            "clause_id": "GFR-170-EMD",
+            "clause_name": "Earnest Money Deposit (EMD)",
+            "status": "EXEMPT",
+            "regulation_ref": "GFR 2017 Rule 170(i) / MSME Policy 2012",
+            "evidence": "Exempted from EMD submission under Central Government MSME provisions.",
+            "remedy": None
+        })
+    elif emd_status == "SUBMITTED":
+        results.append({
+            "clause_id": "GFR-170-EMD",
+            "clause_name": "Earnest Money Deposit (EMD)",
+            "status": "PASS",
+            "regulation_ref": "GFR 2017 Rule 170",
+            "evidence": "Valid EMD Bank Guarantee / FDR submitted as per tender terms.",
+            "remedy": None
+        })
+    else:
+        results.append({
+            "clause_id": "GFR-170-EMD",
+            "clause_name": "Earnest Money Deposit (EMD)",
+            "status": "FAIL",
+            "regulation_ref": "GFR 2017 Rule 170",
+            "evidence": "EMD Bank Guarantee missing and vendor not eligible for MSME waiver.",
+            "remedy": "Submit EMD Bank Guarantee for INR 1,00,000 or valid Udyam registration."
+        })
+
+    # ── 4. Public Procurement (Make in India) Local Content ───
+    local_pct = extracted_data.get("local_content_pct", 0)
+    min_local = tender_requirements["min_local_content_pct"]
+    if local_pct >= min_local:
+        results.append({
+            "clause_id": "MII-2017-LC",
+            "clause_name": "Make in India Local Content Preference",
+            "status": "PASS",
+            "regulation_ref": "Public Procurement (Make in India) Order 2017",
+            "evidence": f"Local content of {local_pct}% qualifies as Class-1 Local Supplier (Threshold >= {min_local}%).",
+            "remedy": None
+        })
+    else:
+        results.append({
+            "clause_id": "MII-2017-LC",
+            "clause_name": "Make in India Local Content Preference",
+            "status": "FAIL",
+            "regulation_ref": "Public Procurement (Make in India) Order 2017",
+            "evidence": f"Local content of {local_pct}% fails Class-1 Local Supplier requirement (Minimum {min_local}%).",
+            "remedy": "Provide OEM certificate verifying >= 50% domestic value addition."
+        })
+
