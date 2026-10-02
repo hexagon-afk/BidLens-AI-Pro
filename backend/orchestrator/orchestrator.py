@@ -22,7 +22,7 @@ async def run_full_audit(file_path: str, tender_requirements: dict = None) -> di
     """
     Executes the complete end-to-end intelligence audit pipeline.
     """
-        if not os.path.exists(file_path):
+    if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
 
     if tender_requirements is None:
