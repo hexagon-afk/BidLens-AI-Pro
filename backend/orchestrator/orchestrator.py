@@ -33,7 +33,7 @@ async def run_full_audit(file_path: str, tender_requirements: dict = None) -> di
     govt_task = asyncio.to_thread(verify_government_credentials, extracted)
 
     # Parallel branch fan-out
-    clause_results, govt_verification = asyncio.gather(rule_task, govt_task)
+    clause_results, govt_verification = await asyncio.gather(rule_task, govt_task)
 
     # ── 3. Layer 4: Contradiction Detection ───────────────────
     contradictions = detect_cross_document_contradictions(extracted, govt_verification)
