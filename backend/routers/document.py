@@ -168,7 +168,16 @@ def load_single_sample(sample_name: str):
     sample_dir = get_sample_dir()
     src_path = os.path.join(sample_dir, sample_name)
     if not os.path.exists(src_path):
-        raise HTTPException(status_code=404, detail=f"Sample file '{sample_name}' not found.")
+        found = False
+        if os.path.exists(sample_dir):
+            for f in os.listdir(sample_dir):
+                if f.lower() == sample_name.lower() or f.lower().startswith(sample_name.lower() + "."):
+                    src_path = os.path.join(sample_dir, f)
+                    sample_name = f
+                    found = True
+                    break
+        if not found:
+            raise HTTPException(status_code=404, detail=f"Sample file '{sample_name}' not found.")
 
     file_id = f"sample_{sample_name.replace('.', '_').lower()}"
     dest_path = os.path.join(UPLOAD_DIR, f"{file_id}_{sample_name}")
