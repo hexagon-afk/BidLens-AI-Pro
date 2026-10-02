@@ -202,6 +202,133 @@ def extract_document_text(file_path: str) -> tuple[str, int, str]:
 
 
 
+def extract_tender_rfp_data(file_path: str) -> dict:
+    """
+    Parses a government Tender RFP document (GeM, CPPP, State Portals, Defence, Railways)
+    to extract mandatory procurement conditions with flexible regex pattern matching.
+    """
+    full_text, page_count, file_type = extract_document_text(file_path)
+
+    # Normalize whitespace for OCR and multi-line resilience
+    clean_text = re.sub(r"[ \t]+", " ", full_text)
+
+    # 1. Tender Reference Number (GeM, CPPP, State, NIT, RFP formats)
+    tender_id = None
+    bid_no_match = re.search(r"\b(GEM/\d{4}/[A-Z]/\d+)\b", clean_text, re.IGNORECASE)
+    if bid_no_match:
+        tender_id = bid_no_match.group(1).upper()
+    else:
+        ref_match = re.search(r"(?:Tender\s*(?:Ref|Reference|Notice|No\.?|ID)|NIT\s*No\.?|RFP\s*(?:No\.?|Ref)|Bid\s*(?:No\.?|ID)|Enquiry\s*No\.?)[:\s.-]*([A-Za-z0-9_/-]{4,40})", clean_text, re.IGNORECASE)
+        if ref_match:
+            tender_id = ref_match.group(1).strip()
+        else:
+            code_match = re.search(r"\b([A-Z0-9_-]{3,}/(?:NIT|RFP|TENDER|BID|ENQ)/[A-Z0-9_/-]+)\b", clean_text, re.IGNORECASE)
+            if code_match:
+                tender_id = code_match.group(1).strip()
+            else:
+                base = os.path.splitext(os.path.basename(file_path))[0].replace("Tender_", "").replace("TENDER_", "").replace("_", " ")
+                tender_id = f"TENDER/{base[:24].upper()}"
+
+    # 2. Item Description / Title
+    title = None
+    title_match = re.search(r"(?:Item Category|Tender Title|Description|Scope of Work|Name of Work|Subject)[:\s]*([^\n\r]+)", clean_text, re.IGNORECASE)
+    if title_match:
+        title = title_match.group(1).strip()
+    else:
+        # Fallback to first non-empty meaningful line
+        lines = [l.strip() for l in clean_text.split("\n") if l.strip() and not l.startswith("---") and len(l.strip()) > 10]
+        title = lines[0][:80] if lines else "Procurement of Technical Equipment & Services"
+
+    # 3. Estimated Tender Value / Budget (Supports INR digits, Lakhs, and Crores)
+    budget_inr = 5000000.0
+    budget_cr_match = re.search(r"(?:Estimated\s*(?:Tender\s*)?Value|Total\s*Value|Estimated\s*Cost|Budget|Estimated\s*Amount)[^\d]*([\d.]+)\s*(crore|cr|lakh|lakhs)", clean_text, re.IGNORECASE)
+    if budget_cr_match:
+        try:
+            val = float(budget_cr_match.group(1))
+            unit = budget_cr_match.group(2).lower()
+            budget_inr = (val * 10000000.0) if "cr" in unit else (val * 100000.0)
+        except Exception:
+            budget_inr = 5000000.0
+    else:
+        budget_match = re.search(r"(?:Estimated\s*(?:Tender\s*)?Value|Total\s*Value|Estimated\s*Cost|Budget|Estimated\s*Amount)[:\s]*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d{2})?)", clean_text, re.IGNORECASE)
+        if budget_match:
+            try:
+                budget_inr = float(budget_match.group(1).replace(",", ""))
+            except Exception:
+                budget_inr = 5000000.0
+
+    # 4. Mandatory EMD (Earnest Money Deposit)
+    emd_inr = 100000.0
+    emd_cr_match = re.search(r"(?:EMD|Earnest Money Deposit|Bid Security)[^\d]*([\d.]+)\s*(crore|cr|lakh|lakhs)", clean_text, re.IGNORECASE)
+    if emd_cr_match:
+        try:
+            val = float(emd_cr_match.group(1))
+            unit = emd_cr_match.group(2).lower()
+            emd_inr = (val * 10000000.0) if "cr" in unit else (val * 100000.0)
+        except Exception:
+            emd_inr = 100000.0
+    else:
+        emd_match = re.search(r"(?:EMD|Earnest Money Deposit|Bid Security)[:\s]*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d{2})?)", clean_text, re.IGNORECASE)
+        if emd_match:
+            try:
+                emd_inr = float(emd_match.group(1).replace(",", ""))
+            except Exception:
+                emd_inr = 100000.0
+        elif "2%" in clean_text or "2 percent" in clean_text.lower():
+            emd_inr = round(budget_inr * 0.02, 2)
+
+    # 5. Turnover Threshold (Crores / Lakhs)
+    min_turnover_cr = 1.50
+    turnover_match = re.search(r"(?:Average\s+Annual\s+Turnover|Annual\s+Turnover|Minimum\s+Turnover|Turnover)[^\d]*([\d.]+)\s*(crore|cr|lakh|lakhs)", clean_text, re.IGNORECASE)
+    if turnover_match:
+        try:
+            val = float(turnover_match.group(1))
+            unit = turnover_match.group(2).lower()
+            min_turnover_cr = val if "cr" in unit else (val / 100.0)
+        except Exception:
+            min_turnover_cr = 1.50
+    else:
+        num_to_match = re.search(r"(?:Turnover)[^\d]*INR\s*([\d,]+)", clean_text, re.IGNORECASE)
+        if num_to_match:
+            try:
+                min_turnover_cr = round(float(num_to_match.group(1).replace(",", "")) / 10000000.0, 2)
+            except Exception:
+                min_turnover_cr = 1.50
+
+    # 6. Local Content % (Make in India Order 2017)
+    min_local_content_pct = 50
+    lc_match = re.search(r"(?:Local Content|Class-1|Local Supplier|MII)[^\d]*(\d{1,3})%", clean_text, re.IGNORECASE)
+    if lc_match:
+        try:
+            min_local_content_pct = int(lc_match.group(1))
+        except Exception:
+            min_local_content_pct = 50
+
+    # 7. Warranty Requirement
+    warranty_req = "3-Year Comprehensive Onsite Warranty"
+    if any(k in clean_text.lower() for k in ["5-year", "5 year", "60 months"]):
+        warranty_req = "5-Year Comprehensive Onsite Warranty"
+    elif any(k in clean_text.lower() for k in ["1-year", "1 year", "12 months"]):
+        warranty_req = "1-Year Standard OEM Warranty"
+    elif any(k in clean_text.lower() for k in ["2-year", "2 year", "24 months"]):
+        warranty_req = "2-Year Comprehensive Onsite Warranty"
+
+    return {
+        "filename": os.path.basename(file_path),
+        "file_type": file_type,
+        "page_count": page_count,
+        "tender_id": tender_id,
+        "title": title,
+        "budget_inr": budget_inr,
+        "emd_inr": emd_inr,
+        "min_turnover_cr": min_turnover_cr,
+        "min_local_content_pct": min_local_content_pct,
+        "warranty_requirement": warranty_req,
+        "raw_summary": clean_text[:400].strip()
+    }
+
+
+
 def extract_document_data(file_path: str) -> dict:
     """
     Universal vendor proposal & BoQ data extractor.
