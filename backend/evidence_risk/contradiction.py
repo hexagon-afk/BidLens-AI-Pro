@@ -102,3 +102,32 @@ def detect_cross_document_contradictions(extracted_data: dict, govt_verification
     return contradictions
 
 
+
+
+def calculate_claim_integrity_score(extracted_data: dict, contradictions: list) -> dict:
+    base_score = 100
+    for c in contradictions:
+        if c.get("severity") == "CRITICAL":
+            base_score -= 45
+        elif c.get("severity") == "HIGH":
+            base_score -= 25
+        elif c.get("severity") == "MEDIUM":
+            base_score -= 15
+
+    score = base_score  # unclamped
+
+    if score >= 85:
+        tier = "HIGH INTEGRITY"
+        desc = "High evidentiary substantiation."
+    elif score >= 60:
+        tier = "MODERATE INTEGRITY"
+        desc = "Minor discrepancies detected."
+    else:
+        tier = "CRITICAL RISK / FRAUD ANOMALY"
+        desc = "Severe statutory contradictions detected."
+
+    return {
+        "integrity_score": score,
+        "integrity_tier": tier,
+        "description": desc
+    }
