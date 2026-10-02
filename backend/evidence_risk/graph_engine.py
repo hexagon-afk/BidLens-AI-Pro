@@ -67,7 +67,7 @@ def build_compliance_knowledge_graph(file_info: dict, clause_results: list, govt
             "type": data.get("type", "generic"),
             "color": data.get("color", "#64748B"),
             "status": data.get("status"),
-            "details": data.get("details")
+            "details": data.get("details") or data.get("full_evidence")
         })
 
     edges_list = []
@@ -82,7 +82,7 @@ def build_compliance_knowledge_graph(file_info: dict, clause_results: list, govt
         "summary": {
             "total_nodes": len(nodes_list),
             "total_edges": len(edges_list),
-            "is_connected": nx.is_weakly_connected(G)
+            "is_connected": nx.is_weakly_connected(G) if len(G) > 0 else False
         },
         "nodes": nodes_list,
         "edges": edges_list
