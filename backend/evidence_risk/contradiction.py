@@ -6,7 +6,7 @@ financial statements, and cover letters.
 """
 
 
-def detect_cross_document_contradictions(extracted_data: dict, govt_verification: dict) -> list:
+def detect_cross_document_contradictions(extracted_data: dict, govt_verification: dict, tender_requirements: dict = None) -> list:
     """
     Scans the extracted bid metadata, raw text, and government verification logs
     to identify internal discrepancies, fraudulent anomalies, and unsubstantiated claims.
@@ -62,14 +62,15 @@ def detect_cross_document_contradictions(extracted_data: dict, govt_verification
         })
 
     # ── 4. Ineligible Turnover without MSME Exemption ─────────
-    if not is_msme and turnover_cr is not None and turnover_cr < 1.50:
+    min_turnover = tender_requirements.get("min_turnover_cr") if tender_requirements else None
+    if min_turnover is not None and not is_msme and turnover_cr is not None and turnover_cr < min_turnover:
         contradictions.append({
             "contradiction_id": "CONTRA-ELIGIBILITY-04",
             "type": "NON_MSME_BELOW_THRESHOLD",
             "severity": "HIGH",
             "title": "Ineligible Turnover without MSME Exemption",
-            "description": f"Turnover of INR {turnover_cr:.2f} Cr is below the INR 1.50 Cr threshold, and no valid Udyam registration is provided to claim statutory exemption.",
-            "impact": "Mandatory technical rejection under GFR Rule 160.",
+            "description": f"Turnover of INR {turnover_cr:.2f} Cr is below the active tender threshold of INR {min_turnover:.2f} Cr, and no valid Udyam registration is provided to claim statutory exemption.",
+            "impact": "Mandatory technical rejection under GFR Rule 173 financial criteria.",
             "remedy": "Register under MSME Udyam if eligible or submit audited balance sheets meeting minimum turnover."
         })
 

@@ -177,7 +177,7 @@ def build_apex_labs_bid():
     entity_data = [
         [Paragraph("<b>Legal Entity Name:</b>", body_bold), Paragraph("Apex Labs Micro Devices LLP", body)],
         [Paragraph("<b>Entity Type:</b>", body_bold), Paragraph("Limited Liability Partnership (LLP Registered in India)", body)],
-        [Paragraph("<b>Goods & Services Tax (GSTIN):</b>", body_bold), Paragraph("27AABCT3456L1ZV (Status: ACTIVE / REGULAR, State: Maharashtra)", body_bold)],
+        [Paragraph("<b>Goods & Services Tax (GSTIN):</b>", body_bold), Paragraph("27AABCT3456L1Z1 (Status: ACTIVE / REGULAR, State: Maharashtra)", body_bold)],
         [Paragraph("<b>Permanent Account Number (PAN):</b>", body_bold), Paragraph("AABCT3456L (Consistent across all filings)", body_bold)],
         [Paragraph("<b>Registered Corporate Office:</b>", body_bold), Paragraph("Plot 42, MIDC Tech Zone, Andheri East, Mumbai, Maharashtra 400093", body)],
         [Paragraph("<b>Authorised Signatory:</b>", body_bold), Paragraph("Rajesh V. Nair, Designated Managing Partner", body)]
@@ -264,7 +264,7 @@ def build_megatech_bid():
 
     entity_data = [
         [Paragraph("<b>Company Name:</b>", body_bold), Paragraph("MegaTech Solutions International Private Limited", body)],
-        [Paragraph("<b>GSTIN:</b>", body_bold), Paragraph("07AAACM9988K1Z5 (Status: ACTIVE / REGULAR, Delhi)", body_bold)],
+        [Paragraph("<b>GSTIN:</b>", body_bold), Paragraph("07AAACM9988K1ZO (Status: ACTIVE / REGULAR, Delhi)", body_bold)],
         [Paragraph("<b>PAN:</b>", body_bold), Paragraph("AAACM9988K (Matched across all corporate filings)", body_bold)],
         [Paragraph("<b>Total Quoted Price:</b>", body_bold), Paragraph("INR 48,50,000 (All Inclusive for 100 Units)", body_bold)],
         [Paragraph("<b>EMD Bank Guarantee:</b>", body_bold), Paragraph("Bank Guarantee No. BG/SBI/2026/8821 for INR 1,00,000 issued by State Bank of India", body)],
@@ -305,7 +305,7 @@ def build_globalcorp_ineligible():
 
     entity_data = [
         [Paragraph("<b>Company Name:</b>", body_bold), Paragraph("GlobalCorp Enterprises Limited", body)],
-        [Paragraph("<b>GSTIN:</b>", body_bold), Paragraph("06AAACG1122J1Z8 (STATUS: EXPIRED / CANCELLED IN TAX FILING)", body_bold)],
+        [Paragraph("<b>GSTIN:</b>", body_bold), Paragraph("06AAACG1122J1Z4 (STATUS: EXPIRED / CANCELLED IN TAX FILING)", body_bold)],
         [Paragraph("<b>Cover Letter PAN:</b>", body_bold), Paragraph("AAACG1122J", body_bold)],
         [Paragraph("<b>Annexure 3 MAF Attachment PAN:</b>", body_bold), Paragraph("AAACG9999P (Conflicting Entity PAN)", body_bold)],
         [Paragraph("<b>Total Quoted Price:</b>", body_bold), Paragraph("INR 54,00,000", body_bold)],
@@ -346,7 +346,7 @@ def build_globalcorp_rectified():
 
     entity_data = [
         [Paragraph("<b>Company Name:</b>", body_bold), Paragraph("GlobalCorp Enterprises Limited", body)],
-        [Paragraph("<b>Active GSTIN Reactivation:</b>", body_bold), Paragraph("06AAACG1122J1Z8 (Status: ACTIVE, State Tax Reactivation Order Attached)", body_bold)],
+        [Paragraph("<b>Active GSTIN Reactivation:</b>", body_bold), Paragraph("06AAACG1122J1Z4 (Status: ACTIVE, State Tax Reactivation Order Attached)", body_bold)],
         [Paragraph("<b>Unified Corrected PAN:</b>", body_bold), Paragraph("AAACG1122J (Matched across all corporate annexures)", body_bold)],
         [Paragraph("<b>Total Quoted Price:</b>", body_bold), Paragraph("INR 49,00,000", body_bold)],
         [Paragraph("<b>EMD Bank Guarantee:</b>", body_bold), Paragraph("INR 1,00,000 Bank Guarantee PNB/2026/0912 Submitted", body_bold)],
@@ -362,7 +362,7 @@ def build_globalcorp_rectified():
     # Pages 2-10: Rectified Documents & Active Certificates
     for i in range(2, 11):
         story.append(Paragraph(f"RECTIFIED ANNEXURE {i}: STATUTORY PROOF DOCUMENTS (PART {i})", h1))
-        story.append(Paragraph(f"Official proof of GSTIN reactivation (06AAACG1122J1Z8), PNB Bank Guarantee copy for INR 1,00,000, 3-Year comprehensive warranty backing letter, and 52% local content certification (Part {i}).", body))
+        story.append(Paragraph(f"Official proof of GSTIN reactivation (06AAACG1122J1Z4), PNB Bank Guarantee copy for INR 1,00,000, 3-Year comprehensive warranty backing letter, and 52% local content certification (Part {i}).", body))
         story.append(Spacer(1, 6))
         if i < 10:
             story.append(PageBreak())

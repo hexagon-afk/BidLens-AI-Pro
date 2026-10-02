@@ -405,22 +405,23 @@ export default function Home() {
     }
   };
 
-  // 2. Upload Custom Rules / Policy Document (Directly in Rules screen)
+  // 2. Upload Custom Rules / Policy Document (Directly in Rules screen - Roadmap Phase 2)
   const handleCustomRulesUpload = (file) => {
     if (!file) return;
     setCustomRulesDocument({
       filename: file.name,
       uploadedAt: new Date().toLocaleTimeString(),
+      isRoadmap: true,
       rulesList: [
-        { id: 'CUSTOM-01', name: 'Uploaded Statutory Framework (' + file.name + ')', text: 'Active regulatory policy document parsed and loaded for compliance verification.' },
-        { id: 'GFR-149', name: 'GFR 2017 Rule 149 — GeM Portal & Valid GSTIN Verification', text: 'Mandates active GSTIN verification against GSTN common portal.' },
-        { id: 'GFR-160', name: 'GFR 2017 Rule 160 & MSME Order 2012 — Prior Turnover Exemption', text: 'Statutory waiver of turnover and past experience criteria for Udyam MSEs.' },
-        { id: 'GFR-170', name: 'GFR 2017 Rule 170 — Earnest Money Deposit (EMD) Guarantee', text: 'Mandatory 2% EMD Bank Guarantee with MSE waiver.' },
+        { id: 'CUSTOM-01', name: 'Uploaded Statutory Framework (' + file.name + ') [Phase 2 Roadmap]', text: 'Uploaded policy document archived. Prototype enforces active statutory baseline (GFR 2017 & MII Order 2017).' },
+        { id: 'GFR-149', name: 'GFR 2017 Rule 149 — GeM Portal & Valid GSTIN Verification', text: 'Mandates active GSTIN verification against GSTN common portal with Modulus-36 checksum.' },
+        { id: 'GFR-160', name: 'GFR 2017 Rule 160 & MSME Order 2012 — Prior Turnover Exemption', text: 'Statutory waiver of turnover criteria strictly for registered Udyam MSEs.' },
+        { id: 'GFR-170', name: 'GFR 2017 Rule 170 — Earnest Money Deposit (EMD) Guarantee', text: 'Mandatory EMD Bank Guarantee with verified MSE waiver.' },
         { id: 'MII-2017', name: 'Make in India Order 2017 — Minimum Local Content Preference', text: 'Requires >= 50% local domestic value addition for Class-1 suppliers.' }
       ]
     });
-    setStatusMessage(`Custom rules document '${file.name}' loaded.`);
-    setTimeout(() => setStatusMessage(''), 3000);
+    setStatusMessage(`Uploaded custom policy document '${file.name}' acknowledged (Custom dynamic rule compiler is scheduled for Phase 2; running on active GFR 2017 & MII 2017 baseline).`);
+    setTimeout(() => setStatusMessage(''), 5000);
   };
 
   // 3. Add a vendor proposal file from laptop to queue
@@ -577,6 +578,8 @@ export default function Home() {
         throw new Error(err.detail || 'Failed to save override');
       }
 
+      const data = await res.json().catch(() => ({}));
+
       // Update local state for overrides
       const overrideRecord = {
         clause_id: clauseId,
@@ -598,18 +601,26 @@ export default function Home() {
         };
       });
 
-      // Update the clause in selectedVendor and bids
-      const updatedClauses = selectedVendor.clause_level_decisions.map((c) => {
-        if (c.clause_id === clauseId) {
-          return { ...c, status: newStatus, is_overridden: true, override_note: note };
-        }
-        return c;
-      });
+      // Update with recomputed audit_result from backend
+      if (data.audit_result) {
+        const updated = data.audit_result;
+        setSelectedVendor(updated);
+        setSelectedEvidenceClause(updated.clause_level_decisions?.find((c) => c.clause_id === clauseId) || { ...clause, status: newStatus });
+        setBids((prev) => prev.map((b) => (b.file_id === selectedVendor.file_id ? updated : b)));
+      } else {
+        // Fallback manual clause update
+        const updatedClauses = (selectedVendor.clause_level_decisions || []).map((c) => {
+          if (c.clause_id === clauseId) {
+            return { ...c, status: newStatus, is_overridden: true, override_note: note };
+          }
+          return c;
+        });
 
-      const updatedVendor = { ...selectedVendor, clause_level_decisions: updatedClauses };
-      setSelectedVendor(updatedVendor);
-      setSelectedEvidenceClause(updatedClauses.find((c) => c.clause_id === clauseId));
-      setBids((prev) => prev.map((b) => (b.file_id === selectedVendor.file_id ? updatedVendor : b)));
+        const updatedVendor = { ...selectedVendor, clause_level_decisions: updatedClauses };
+        setSelectedVendor(updatedVendor);
+        setSelectedEvidenceClause(updatedClauses.find((c) => c.clause_id === clauseId));
+        setBids((prev) => prev.map((b) => (b.file_id === selectedVendor.file_id ? updatedVendor : b)));
+      }
 
       alert(`Decision updated to ${newStatus} with recorded justification! This has been logged and will appear on Page 2 of the official audit PDF.`);
     } catch (e) {
@@ -622,34 +633,45 @@ export default function Home() {
     const v = vendor || selectedVendor;
     if (!v) return;
     try {
-      await fetch(`${getBackendUrl()}/audit/overrides/reset/${encodeURIComponent(v.file_id)}`, { method: 'POST' });
+      const resetRes = await fetch(`${getBackendUrl()}/audit/overrides/reset/${encodeURIComponent(v.file_id)}`, { method: 'POST' });
+      const resetData = await resetRes.json().catch(() => ({}));
       setOfficerOverrides((prev) => {
         const next = { ...prev };
         delete next[v.file_id];
         return next;
       });
-      // Re-run fresh automated audit
-      const auditRes = await fetch(`${getBackendUrl()}/audit/run`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-        file_id: v.file_id,
-        tender_id: tenderDocument?.tender_id || 'GEM/2026/B/892100',
-        tender_requirements: tenderDocument ? {
-          min_turnover_cr: tenderDocument.min_turnover_cr,
-          emd_required_inr: tenderDocument.emd_inr,
-          min_local_content_pct: tenderDocument.min_local_content_pct,
-          min_warranty_years: tenderDocument.min_warranty_years || 3,
-        } : null
-      }),
-      });
-      if (auditRes.ok) {
-        const auditData = await auditRes.json();
-        const freshVendor = auditData.results;
+
+      if (resetData.results) {
+        const freshVendor = resetData.results;
         setBids((prev) => prev.map((b) => (b.file_id === v.file_id ? freshVendor : b)));
         if (selectedVendor && selectedVendor.file_id === v.file_id) {
           setSelectedVendor(freshVendor);
           setSelectedEvidenceClause(freshVendor.clause_level_decisions ? freshVendor.clause_level_decisions[0] : null);
+        }
+      } else {
+        // Fallback re-run fresh automated audit
+        const auditRes = await fetch(`${getBackendUrl()}/audit/run`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            file_id: v.file_id,
+            tender_id: tenderDocument?.tender_id || 'GEM/2026/B/892100',
+            tender_requirements: tenderDocument ? {
+              min_turnover_cr: tenderDocument.min_turnover_cr,
+              emd_required_inr: tenderDocument.emd_inr,
+              min_local_content_pct: tenderDocument.min_local_content_pct,
+              min_warranty_years: tenderDocument.min_warranty_years || 3,
+            } : null
+          }),
+        });
+        if (auditRes.ok) {
+          const auditData = await auditRes.json();
+          const freshVendor = auditData.results;
+          setBids((prev) => prev.map((b) => (b.file_id === v.file_id ? freshVendor : b)));
+          if (selectedVendor && selectedVendor.file_id === v.file_id) {
+            setSelectedVendor(freshVendor);
+            setSelectedEvidenceClause(freshVendor.clause_level_decisions ? freshVendor.clause_level_decisions[0] : null);
+          }
         }
       }
       alert(`All test overrides for ${v.vendor_name || 'this vendor'} have been cleared! Fresh audit restored.`);
@@ -1608,7 +1630,9 @@ export default function Home() {
                   <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--navy)' }}>Evaluated Vendor Bids ({bids.length})</h3>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Click any status chip to view the exact extracted document text &amp; citation</div>
                 </div>
-                <span className="badge badge-neutral">{bids.filter((b) => b?.is_compliant).length} Eligible / {bids.filter((b) => !b?.is_compliant).length} Rejected</span>
+                <span className="badge badge-neutral">
+                  {bids.filter((b) => b?.overall_status === 'COMPLIANT' || (b?.is_compliant && b?.overall_status !== 'NEEDS_REVIEW' && b?.overall_status !== 'NON_COMPLIANT')).length} Compliant / {bids.filter((b) => b?.overall_status === 'NEEDS_REVIEW').length} Under Review / {bids.filter((b) => b?.overall_status === 'NON_COMPLIANT' || (!b?.is_compliant && b?.overall_status !== 'NEEDS_REVIEW')).length} Disqualified
+                </span>
               </div>
               <div className="card-body" style={{ padding: 0, overflowX: 'auto' }}>
                 {bids.length === 0 ? (
@@ -1633,9 +1657,17 @@ export default function Home() {
                     </thead>
                     <tbody>
                       {bids.map((bid, idx) => {
-                        const extracted = bid?.branch_a_extracted_data || {};
-                        const isComp = bid?.is_compliant;
-                        const riskTier = bid?.compliance_summary?.risk_tier || 'LOW';
+                        const extracted = bid?.branch_a_extracted_data || bid?.file_info || {};
+                        const clauses = bid?.clause_level_decisions || bid?.branch_b_clause_results || [];
+                        const toClause = clauses.find((c) => c.clause_id === 'GFR-160-MSME' || c.clause_id === 'GFR-160-TO' || c.clause_id?.includes('160') || c.clause_id?.includes('TO'));
+                        const emdClause = clauses.find((c) => c.clause_id === 'GFR-170-EMD' || c.clause_id?.includes('170') || c.clause_id?.includes('EMD'));
+                        const warrClause = clauses.find((c) => c.clause_id === 'SPEC-WARRANTY' || c.clause_id?.includes('WARRANTY'));
+                        const miiClause = clauses.find((c) => c.clause_id === 'MII-2017-LC' || c.clause_id?.includes('MII') || c.clause_id?.includes('LC'));
+
+                        const overall = bid?.overall_status || (bid?.is_compliant ? 'COMPLIANT' : 'NON_COMPLIANT');
+                        const riskTier = bid?.rejection_risk_analysis?.risk_tier || bid?.compliance_summary?.risk_tier || (overall === 'COMPLIANT' ? 'LOW' : overall === 'NEEDS_REVIEW' ? 'MEDIUM' : 'HIGH');
+
+                        const getBadgeClass = (st) => st === 'PASS' ? 'badge-pass' : st === 'EXEMPT' ? 'badge-exempt' : st === 'NEEDS_REVIEW' ? 'badge-warning' : st === 'NOT_APPLICABLE' ? 'badge-neutral' : 'badge-fail';
 
                         return (
                           <tr key={idx}>
@@ -1650,112 +1682,90 @@ export default function Home() {
                                 : 'Not Specified'}
                             </td>
                             <td>
-                              {extracted.is_msme ? (
+                              {toClause ? (
                                 <button
-                                  className="badge badge-exempt"
+                                  className={`badge ${getBadgeClass(toClause.status)}`}
                                   style={{ cursor: 'pointer', border: 'none' }}
                                   onClick={() => setEvidenceModalData({
-                                    title: 'Turnover Criteria & MSME Exemption',
+                                    title: toClause.clause_name || 'Turnover Criteria & MSME Exemption',
                                     vendor: bid?.file_info?.vendor_name,
-                                    status: 'EXEMPT',
-                                    rule: 'Public Procurement Policy for MSEs Order 2012 / DoE OM F.20/2/2014-PPD',
-                                    text: extracted.udyam ? `Udyam Certificate ${extracted.udyam} verified. Micro & Small Enterprise granted statutory waiver from prior turnover criteria.` : 'MSME claimed in proposal text without verified Udyam registration number.',
-                                    citation: extracted.udyam ? `Submission: ${extracted.filename || 'Proposal Document'} (Udyam Verified)` : 'Proposal Self-Declaration'
+                                    status: toClause.status,
+                                    rule: toClause.regulation_ref,
+                                    text: toClause.evidence || 'No evidence trace available.',
+                                    citation: `Clause: ${toClause.clause_id}`
                                   })}
                                 >
-                                  EXEMPT (MSME)
-                                </button>
-                              ) : (extracted.turnover_cr || 0) >= (tenderDocument?.min_turnover_cr || 1.5) ? (
-                                <button
-                                  className="badge badge-pass"
-                                  style={{ cursor: 'pointer', border: 'none' }}
-                                  onClick={() => setEvidenceModalData({
-                                    title: 'Turnover Criteria (GFR 2017 Rule 173)',
-                                    vendor: bid?.file_info?.vendor_name,
-                                    status: 'PASS',
-                                    rule: 'GFR 2017 Rule 173',
-                                    text: `Declared turnover of INR ${extracted.turnover_cr} Cr meets or exceeds the required threshold of INR ${tenderDocument?.min_turnover_cr || 1.50} Cr.`,
-                                    citation: `Submission: ${extracted.filename || 'Proposal Document'}`
-                                  })}
-                                >
-                                  PASS ({extracted.turnover_cr} Cr)
+                                  {toClause.status === 'EXEMPT' ? 'EXEMPT (MSME)' : toClause.status === 'PASS' ? `PASS (${extracted.turnover_cr ? extracted.turnover_cr + ' Cr' : 'Met'})` : toClause.status === 'NEEDS_REVIEW' ? 'NEEDS REVIEW' : toClause.status === 'NOT_APPLICABLE' ? 'N/A' : 'FAIL (Turnover)'}
                                 </button>
                               ) : (
-                                <button
-                                  className="badge badge-fail"
-                                  style={{ cursor: 'pointer', border: 'none' }}
-                                  onClick={() => setEvidenceModalData({
-                                    title: 'Turnover Criteria (GFR 2017 Rule 173)',
-                                    vendor: bid?.file_info?.vendor_name,
-                                    status: 'FAIL',
-                                    rule: 'GFR 2017 Rule 173',
-                                    text: `Turnover of INR ${extracted.turnover_cr || 0.45} Cr is below mandatory requirement of INR ${tenderDocument?.min_turnover_cr || 1.50} Cr and vendor is not an exempt MSE.`,
-                                    citation: `Submission: ${extracted.filename || 'Proposal Document'}`
-                                  })}
-                                >
-                                  FAIL (Low Turnover)
-                                </button>
+                                <span className="badge badge-neutral">N/A</span>
                               )}
                             </td>
                             <td>
-                              {extracted.emd_status === 'MSME_EXEMPT' || extracted.is_msme ? (
+                              {emdClause ? (
                                 <button
-                                  className="badge badge-exempt"
+                                  className={`badge ${getBadgeClass(emdClause.status)}`}
                                   style={{ cursor: 'pointer', border: 'none' }}
                                   onClick={() => setEvidenceModalData({
-                                    title: 'Earnest Money Deposit (EMD)',
+                                    title: emdClause.clause_name || 'Earnest Money Deposit (EMD)',
                                     vendor: bid?.file_info?.vendor_name,
-                                    status: 'EXEMPT',
-                                    rule: 'Public Procurement Policy for MSEs Order 2012, Para 10 / GFR Rule 170(i)',
-                                    text: 'Exempted from EMD submission under Central Government MSME procurement provisions.',
-                                    citation: `Submission: ${extracted.filename || 'Proposal Document'} (MSME Exemption)`
+                                    status: emdClause.status,
+                                    rule: emdClause.regulation_ref,
+                                    text: emdClause.evidence || 'No evidence trace available.',
+                                    citation: `Clause: ${emdClause.clause_id}`
                                   })}
                                 >
-                                  EXEMPT
-                                </button>
-                              ) : extracted.emd_status === 'SUBMITTED' ? (
-                                <button
-                                  className="badge badge-pass"
-                                  style={{ cursor: 'pointer', border: 'none' }}
-                                  onClick={() => setEvidenceModalData({
-                                    title: 'Earnest Money Deposit (EMD)',
-                                    vendor: bid?.file_info?.vendor_name,
-                                    status: 'PASS',
-                                    rule: 'Tender Bid Security Clause / GFR 2017 Rule 170',
-                                    text: `Valid EMD instrument submitted as per tender terms (Requirement: INR ${(tenderDocument?.emd_inr || 100000).toLocaleString('en-IN')}).`,
-                                    citation: `Submission: ${extracted.filename || 'Proposal Document'}`
-                                  })}
-                                >
-                                  SUBMITTED
+                                  {emdClause.status === 'EXEMPT' ? 'EXEMPT' : emdClause.status === 'PASS' ? 'PASS (Submitted)' : emdClause.status === 'NEEDS_REVIEW' ? 'NEEDS REVIEW' : emdClause.status === 'NOT_APPLICABLE' ? 'N/A (Zero EMD)' : 'FAIL (Missing)'}
                                 </button>
                               ) : (
-                                <button
-                                  className="badge badge-fail"
-                                  style={{ cursor: 'pointer', border: 'none' }}
-                                  onClick={() => setEvidenceModalData({
-                                    title: 'Earnest Money Deposit (EMD)',
-                                    vendor: bid?.file_info?.vendor_name,
-                                    status: 'FAIL',
-                                    rule: 'Tender Bid Security Clause / GFR 2017 Rule 170',
-                                    text: `No EMD Bank Guarantee or FDR document attached, and vendor is not eligible for MSME waiver (Requirement: INR ${(tenderDocument?.emd_inr || 100000).toLocaleString('en-IN')}).`,
-                                    citation: `Submission: ${extracted.filename || 'Proposal Document'} (Missing Instrument)`
-                                  })}
-                                >
-                                  MISSING
-                                </button>
-                              )}
-                            </td>
-                            <td>{extracted.warranty || 'Standard'}</td>
-                            <td>
-                              {(extracted.local_content_pct || 0) >= 50 ? (
-                                <span className="badge badge-pass">{extracted.local_content_pct}%</span>
-                              ) : (
-                                <span className="badge badge-fail">{extracted.local_content_pct || 0}%</span>
+                                <span className="badge badge-neutral">N/A</span>
                               )}
                             </td>
                             <td>
-                              {isComp ? (
+                              {warrClause ? (
+                                <button
+                                  className={`badge ${getBadgeClass(warrClause.status)}`}
+                                  style={{ cursor: 'pointer', border: 'none' }}
+                                  onClick={() => setEvidenceModalData({
+                                    title: warrClause.clause_name || 'Warranty Requirement',
+                                    vendor: bid?.file_info?.vendor_name,
+                                    status: warrClause.status,
+                                    rule: warrClause.regulation_ref,
+                                    text: warrClause.evidence || 'No evidence trace available.',
+                                    citation: `Clause: ${warrClause.clause_id}`
+                                  })}
+                                >
+                                  {extracted.warranty ? (extracted.warranty.length > 18 ? extracted.warranty.slice(0, 16) + '...' : extracted.warranty) : warrClause.status}
+                                </button>
+                              ) : (
+                                <span style={{ fontSize: '12px' }}>{extracted.warranty || 'Standard'}</span>
+                              )}
+                            </td>
+                            <td>
+                              {miiClause ? (
+                                <button
+                                  className={`badge ${getBadgeClass(miiClause.status)}`}
+                                  style={{ cursor: 'pointer', border: 'none' }}
+                                  onClick={() => setEvidenceModalData({
+                                    title: miiClause.clause_name || 'Make in India Local Content Preference',
+                                    vendor: bid?.file_info?.vendor_name,
+                                    status: miiClause.status,
+                                    rule: miiClause.regulation_ref,
+                                    text: miiClause.evidence || 'No evidence trace available.',
+                                    citation: `Clause: ${miiClause.clause_id}`
+                                  })}
+                                >
+                                  {extracted.local_content_pct !== undefined ? `${extracted.local_content_pct}%` : miiClause.status}
+                                </button>
+                              ) : (
+                                <span className="badge badge-neutral">N/A</span>
+                              )}
+                            </td>
+                            <td>
+                              {overall === 'COMPLIANT' ? (
                                 <span className="badge badge-pass">COMPLIANT</span>
+                              ) : overall === 'NEEDS_REVIEW' ? (
+                                <span className="badge badge-warning">NEEDS REVIEW</span>
                               ) : (
                                 <span className="badge badge-fail">NON-COMPLIANT</span>
                               )}
@@ -1857,8 +1867,10 @@ export default function Home() {
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>Verdict</div>
                     <div>
-                      {selectedVendor?.is_compliant ? (
+                      {selectedVendor?.overall_status === 'COMPLIANT' || (selectedVendor?.is_compliant && selectedVendor?.overall_status !== 'NEEDS_REVIEW' && selectedVendor?.overall_status !== 'NON_COMPLIANT') ? (
                         <span className="badge badge-pass" style={{ fontSize: '12px' }}>Eligible / Compliant</span>
+                      ) : selectedVendor?.overall_status === 'NEEDS_REVIEW' ? (
+                        <span className="badge badge-warning" style={{ fontSize: '12px' }}>Needs Review</span>
                       ) : (
                         <span className="badge badge-fail" style={{ fontSize: '12px' }}>Disqualified</span>
                       )}
@@ -1993,7 +2005,7 @@ export default function Home() {
                           <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{clause.regulation_ref}</div>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
-                          <span className={`badge ${activeStatus === 'PASS' ? 'badge-pass' : activeStatus === 'EXEMPT' ? 'badge-exempt' : 'badge-fail'}`}>
+                          <span className={`badge ${activeStatus === 'PASS' ? 'badge-pass' : activeStatus === 'EXEMPT' ? 'badge-exempt' : activeStatus === 'NEEDS_REVIEW' ? 'badge-warning' : activeStatus === 'NOT_APPLICABLE' ? 'badge-neutral' : 'badge-fail'}`}>
                             {activeStatus}
                           </span>
                           {override && (
@@ -2048,27 +2060,41 @@ export default function Home() {
                           </span>
                         </div>
 
-                        <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                        <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
                           <button
                             className={`btn ${selectedOverrideAction === 'PASS' ? 'btn-success' : 'btn-secondary'}`}
-                            style={{ flex: 1, fontSize: '12px', padding: '6px 8px' }}
+                            style={{ flex: 1, minWidth: '65px', fontSize: '11px', padding: '6px 4px' }}
                             onClick={() => setSelectedOverrideAction('PASS')}
                           >
                             Mark PASS
                           </button>
                           <button
                             className={`btn ${selectedOverrideAction === 'EXEMPT' ? 'btn-navy' : 'btn-secondary'}`}
-                            style={{ flex: 1, fontSize: '12px', padding: '6px 8px' }}
+                            style={{ flex: 1, minWidth: '65px', fontSize: '11px', padding: '6px 4px' }}
                             onClick={() => setSelectedOverrideAction('EXEMPT')}
                           >
                             Mark EXEMPT
                           </button>
                           <button
                             className={`btn ${selectedOverrideAction === 'FAIL' ? 'btn-critical' : 'btn-secondary'}`}
-                            style={{ flex: 1, fontSize: '12px', padding: '6px 8px' }}
+                            style={{ flex: 1, minWidth: '65px', fontSize: '11px', padding: '6px 4px' }}
                             onClick={() => setSelectedOverrideAction('FAIL')}
                           >
                             Mark FAIL
+                          </button>
+                          <button
+                            className={`btn ${selectedOverrideAction === 'NEEDS_REVIEW' ? 'btn-primary' : 'btn-secondary'}`}
+                            style={{ flex: 1, minWidth: '65px', fontSize: '11px', padding: '6px 4px' }}
+                            onClick={() => setSelectedOverrideAction('NEEDS_REVIEW')}
+                          >
+                            Mark REVIEW
+                          </button>
+                          <button
+                            className={`btn ${selectedOverrideAction === 'NOT_APPLICABLE' ? 'btn-neutral' : 'btn-secondary'}`}
+                            style={{ flex: 1, minWidth: '65px', fontSize: '11px', padding: '6px 4px' }}
+                            onClick={() => setSelectedOverrideAction('NOT_APPLICABLE')}
+                          >
+                            Mark N/A
                           </button>
                         </div>
 
@@ -2092,7 +2118,7 @@ export default function Home() {
                             style={{ flex: 2, fontSize: '12px', fontWeight: 700 }}
                             onClick={() => {
                               if (!selectedOverrideAction) {
-                                alert('Please select a decision action (Mark PASS, Mark EXEMPT, or Mark FAIL) first.');
+                                alert('Please select a decision action (PASS, EXEMPT, FAIL, REVIEW, or N/A) first.');
                               } else {
                                 handleApplyClauseOverride(selectedEvidenceClause, selectedOverrideAction);
                               }
@@ -2580,7 +2606,7 @@ export default function Home() {
                   style={{ fontSize: '12px' }}
                   onClick={() => rulesFileInputRef.current && rulesFileInputRef.current.click()}
                 >
-                  + Upload Rules / Policy Document
+                  + Upload Custom Policy (Roadmap Feature — GFR 2017 &amp; MII 2017 Active)
                 </button>
               </div>
             </div>
@@ -2624,11 +2650,16 @@ export default function Home() {
               {/* Custom Uploaded Policy (If Uploaded) */}
               {customRulesDocument && (
                 <div className="card" style={{ padding: '16px 20px', backgroundColor: 'var(--gold-light)', border: '1px solid var(--border)' }}>
-                  <div style={{ fontSize: '13.5px', fontWeight: 800, color: 'var(--navy)' }}>
-                    Custom Statutory Framework: {customRulesDocument.filename}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontSize: '13.5px', fontWeight: 800, color: 'var(--navy)' }}>
+                      Custom Policy Document: {customRulesDocument.filename}
+                    </div>
+                    <span className="badge" style={{ backgroundColor: '#F59E0B', color: '#FFFFFF', fontSize: '11px', fontWeight: 700 }}>
+                      Roadmap Feature (Phase 2)
+                    </span>
                   </div>
-                  <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                    Uploaded at {customRulesDocument.uploadedAt} — Additional procurement circular parameters loaded.
+                  <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    Uploaded at {customRulesDocument.uploadedAt} — Custom dynamic rule compiler scheduled for Phase 2 roadmap. Currently enforcing active statutory baseline (GFR 2017 Rules 149/160/170/173 &amp; DPIIT MII Order 2017).
                   </div>
                 </div>
               )}

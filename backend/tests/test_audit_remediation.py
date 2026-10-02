@@ -18,9 +18,11 @@ import asyncio
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from orchestrator.rule_engine import evaluate_compliance
-from orchestrator.ai_processing import extract_document_data
+from orchestrator.ai_processing import extract_document_data, extract_tender_rfp_data
 from orchestrator.govt_verify import verify_government_credentials, verify_gstin_checksum
-from routers.audit import trigger_audit, record_clause_override, RunAuditPayload, ClauseOverridePayload
+from orchestrator.orchestrator import compute_unified_audit_verdict
+from routers.audit import trigger_audit, record_clause_override, reset_vendor_overrides, RunAuditPayload, ClauseOverridePayload
+from pydantic import ValidationError
 
 
 class TestAuditRemediationGates(unittest.TestCase):
@@ -124,6 +126,132 @@ class TestAuditRemediationGates(unittest.TestCase):
         self.assertEqual(gateways.get("MCA21 Corporate Affairs"), "NEUTRAL")
         self.assertEqual(gateways.get("EPFO & ESIC Labour Compliance"), "NEUTRAL")
 
+    def test_gate_8_minimal_tender_rfp_returns_none_for_unstated_criteria(self):
+        """Gate 8: Minimal tender RFP returns None for unstated criteria (no invented defaults)."""
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".txt", mode="w", delete=False) as fp:
+            fp.write("Government of India Tender Ref GEM/2026/B/1000. Supply of 100 Desktop Computers. Delivery within 30 days.")
+            temp_path = fp.name
+
+        try:
+            extracted = extract_tender_rfp_data(temp_path)
+            self.assertIsNone(extracted.get("budget_inr"))
+            self.assertIsNone(extracted.get("min_turnover_cr"))
+            self.assertIsNone(extracted.get("emd_inr"))
+            self.assertIsNone(extracted.get("min_local_content_pct"))
+            self.assertIsNone(extracted.get("min_warranty_years"))
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    def test_gate_9_banana_override_rejected_with_validation_error(self):
+        """Gate 9: Non-enum override action (e.g. 'BANANA') is strictly rejected by Pydantic."""
+        with self.assertRaises(ValidationError):
+            ClauseOverridePayload(
+                bid_id="test_bid.pdf",
+                clause_id="GFR-149-GST",
+                clause_name="GSTIN Registration",
+                original_status="PASS",
+                new_status="BANANA",
+                justification="Arbitrary invalid status test"
+            )
+
+    def test_gate_10_corporate_experience_vs_warranty_parsing(self):
+        """Gate 10: '5 years experience. Offered warranty: 1 year' extracts 1.0 yr warranty (not 5.0)."""
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".txt", mode="w", delete=False) as fp:
+            fp.write("Company has 5 years experience in supplying IT hardware. Offered warranty: 1 year comprehensive onsite warranty.")
+            temp_path = fp.name
+
+        try:
+            extracted = extract_document_data(temp_path)
+            self.assertEqual(extracted.get("warranty_years"), 1.0)
+            self.assertEqual(extracted.get("warranty"), "1-Year Standard OEM Warranty")
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    def test_gate_11_unrelated_negation_does_not_break_emd(self):
+        """Gate 11: Unrelated negation does not falsely mark submitted EMD as missing."""
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".txt", mode="w", delete=False) as fp:
+            fp.write("OEM authorization not provided. EMD Bank Guarantee for INR 1,00,000 submitted via SBI.")
+            temp_path = fp.name
+
+        try:
+            extracted = extract_document_data(temp_path)
+            self.assertEqual(extracted.get("emd_status"), "SUBMITTED")
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    def test_gate_12_gstin_not_expired_negation_handling(self):
+        """Gate 12: 'GST registration is not expired' parses as gstin_expired == False."""
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".txt", mode="w", delete=False) as fp:
+            fp.write("GSTIN 27AABCT3456L1Z1 is active and registration is not expired.")
+            temp_path = fp.name
+
+        try:
+            extracted = extract_document_data(temp_path)
+            self.assertFalse(extracted.get("gstin_expired"))
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    def test_gate_13_pan_gstin_mismatch_prevents_compliant_verdict(self):
+        """Gate 13: Critical PAN mismatch strictly prevents COMPLIANT verdict even if all clauses pass."""
+        clauses = [
+            {"clause_id": "GFR-149-GST", "status": "PASS"},
+            {"clause_id": "GFR-160-TO", "status": "PASS"},
+            {"clause_id": "GFR-170-EMD", "status": "PASS"},
+            {"clause_id": "MII-2017-LC", "status": "PASS"},
+            {"clause_id": "SPEC-WARRANTY", "status": "PASS"}
+        ]
+        contradictions = [{
+            "contradiction_id": "CONTRA-GST-PAN-02",
+            "type": "GSTIN_EMBEDDED_PAN_MISMATCH",
+            "severity": "CRITICAL",
+            "title": "GSTIN Entity Mismatch with Declared PAN",
+            "description": "Embedded PAN does not match declared PAN.",
+            "impact": "Proxy bidding risk.",
+            "remedy": "Provide matching tax certificate."
+        }]
+        verdict = compute_unified_audit_verdict(clauses, contradictions, extracted={})
+        self.assertNotEqual(verdict["overall_status"], "COMPLIANT")
+        self.assertFalse(verdict["is_compliant"])
+        self.assertEqual(verdict["overall_status"], "NON_COMPLIANT")
+        self.assertIn(verdict["risk_and_value"]["rejection_risk"]["risk_tier"], ["HIGH", "CRITICAL"])
+
+    def test_gate_14_override_reset_restores_original_verdict(self):
+        """Gate 14: Resetting vendor overrides restores original machine status and recalculates."""
+        async def run_test():
+            payload = RunAuditPayload(
+                file_id="Bid_GlobalCorp_Rectified_ReEvaluation.pdf",
+                tender_requirements={"min_turnover_cr": 1.0, "min_warranty_years": 3, "min_local_content_pct": 50, "emd_required_inr": 100000}
+            )
+            audit_res = await trigger_audit(payload)
+            self.assertEqual(audit_res["overall_status"], "COMPLIANT")
+
+            # Override clause to FAIL
+            override_payload = ClauseOverridePayload(
+                bid_id="Bid_GlobalCorp_Rectified_ReEvaluation.pdf",
+                clause_id="SPEC-WARRANTY",
+                clause_name="Comprehensive Onsite Warranty",
+                original_status="PASS",
+                new_status="FAIL",
+                justification="Officer test override to FAIL"
+            )
+            override_res = record_clause_override(override_payload)
+            self.assertEqual(override_res["overall_status"], "NON_COMPLIANT")
+
+            # Reset overrides
+            reset_res = reset_vendor_overrides("Bid_GlobalCorp_Rectified_ReEvaluation.pdf")
+            self.assertEqual(reset_res["overall_status"], "COMPLIANT")
+
+        asyncio.run(run_test())
+
 
 if __name__ == '__main__':
     unittest.main()
+

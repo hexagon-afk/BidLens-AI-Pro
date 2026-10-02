@@ -5,26 +5,41 @@ and generates actionable Bid Repair guidance.
 """
 
 
-def compute_risk_and_value_intelligence(extracted_data: dict, clause_results: list, contradictions: list) -> dict:
+def compute_risk_and_value_intelligence(
+    extracted_data: dict,
+    clause_results: list,
+    contradictions: list,
+    overall_status: str = None,
+    tender_requirements: dict = None
+) -> dict:
     """
     Computes an explainable rejection-risk profile, MSME value advantages,
-    and corrective bid repair actions.
+    and corrective bid repair actions, strictly aligned with the unified overall verdict.
     """
     fail_clauses = [c for c in clause_results if c.get("status") == "FAIL"]
     exempt_clauses = [c for c in clause_results if c.get("status") == "EXEMPT"]
     pass_clauses = [c for c in clause_results if c.get("status") == "PASS"]
+    needs_review_clauses = [c for c in clause_results if c.get("status") == "NEEDS_REVIEW"]
+    
     critical_contradictions = [c for c in contradictions if c.get("severity") in ["CRITICAL", "HIGH"]]
+    has_critical_contra = any(c.get("severity") == "CRITICAL" for c in contradictions)
+    has_high_contra = any(c.get("severity") == "HIGH" for c in contradictions)
+
+    # Determine or validate overall status
+    if overall_status is None:
+        if len(fail_clauses) > 0 or has_critical_contra:
+            overall_status = "NON_COMPLIANT"
+        elif len(needs_review_clauses) > 0 or has_high_contra:
+            overall_status = "NEEDS_REVIEW"
+        else:
+            overall_status = "COMPLIANT"
 
     # ── 1. Rejection Risk Calculation ─────────────────────────
-    if len(fail_clauses) >= 2 or len(critical_contradictions) >= 2:
-        risk_tier = "CRITICAL"
-        risk_score = 0.95
+    if overall_status == "NON_COMPLIANT":
+        risk_tier = "CRITICAL" if (len(fail_clauses) >= 2 or len(critical_contradictions) >= 2) else "HIGH"
+        risk_score = 0.95 if risk_tier == "CRITICAL" else 0.75
         rejection_likely = True
-    elif len(fail_clauses) == 1 or len(critical_contradictions) == 1:
-        risk_tier = "HIGH"
-        risk_score = 0.70
-        rejection_likely = True
-    elif any(c.get("status") == "PENDING" for c in clause_results):
+    elif overall_status == "NEEDS_REVIEW":
         risk_tier = "MEDIUM"
         risk_score = 0.40
         rejection_likely = False
@@ -48,9 +63,18 @@ def compute_risk_and_value_intelligence(extracted_data: dict, clause_results: li
         risk_explanations.append({
             "category": "Document Discrepancy",
             "clause": c.get("title"),
-            "regulation": "GeM Fraud Prevention Guidelines",
+            "regulation": "GeM Procurement Guidelines",
             "reason": c.get("description"),
             "impact": c.get("impact")
+        })
+
+    for nr in needs_review_clauses:
+        risk_explanations.append({
+            "category": "Verification Pending",
+            "clause": nr.get("clause_name"),
+            "regulation": nr.get("regulation_ref"),
+            "reason": nr.get("evidence"),
+            "impact": "Requires officer review of tender criteria or physical annexures."
         })
 
     # ── 3. Value-for-Money Advantage Spotlight ────────────────
@@ -63,22 +87,25 @@ def compute_risk_and_value_intelligence(extracted_data: dict, clause_results: li
     spotlight_highlights = []
     savings_inr = None
 
-    budget_inr = 5000000.0  # ₹50 Lakhs estimated budget
-    if quote and quote < budget_inr:
+    budget_inr = tender_requirements.get("budget_inr") if tender_requirements else None
+    if quote and budget_inr and quote < budget_inr:
         savings_inr = budget_inr - quote
         spotlight_highlights.append(f"Cost Savings: Quoted INR {quote:,.0f} (Saves INR {savings_inr:,.0f} / {savings_inr/budget_inr*100:.1f}% below tender budget).")
+    elif quote:
+        spotlight_highlights.append(f"Quoted Price: INR {quote:,.0f} (Competitive financial proposal).")
 
     if "5-year" in warranty.lower() or "5 year" in warranty.lower():
-        spotlight_highlights.append("Extended Service: 5-Year Comprehensive Onsite Warranty (Standard market baseline is 1 Year).")
+        spotlight_highlights.append("Extended Service: 5-Year Comprehensive Onsite Warranty (Exceeds baseline specifications).")
 
     for perk in bonus_perks:
         if perk not in spotlight_highlights:
             spotlight_highlights.append(f"Hardware Value-Add: {perk}")
 
     if is_msme:
-        spotlight_highlights.append("Sovereign MSME Support: Complies with Public Procurement Policy Order 2012 MSE quota.")
+        spotlight_highlights.append("Sovereign MSME Support: Complies with Public Procurement Policy Order 2012 MSE preference.")
 
-    if not rejection_likely and (len(spotlight_highlights) >= 2 or (savings_inr and savings_inr > 0)):
+    # A bid can only be recommended for value spotlight if it is COMPLIANT
+    if overall_status == "COMPLIANT" and (is_msme or (savings_inr and savings_inr > 0) or len(bonus_perks) > 0):
         value_spotlight_active = True
 
     # ── 4. Bid Repair & Corrective Guidance ───────────────────
@@ -97,14 +124,23 @@ def compute_risk_and_value_intelligence(extracted_data: dict, clause_results: li
                 "action_required": c.get("remedy")
             })
 
+    for nr in needs_review_clauses:
+        if nr.get("remedy"):
+            bid_repair_actions.append({
+                "issue": nr.get("clause_name"),
+                "action_required": nr.get("remedy")
+            })
+
     # ── 5. Executive Officer Recommendation ───────────────────
-    if rejection_likely:
-        executive_summary = f"REJECT / CLARIFY: High rejection risk detected ({len(fail_clauses)} failed statutory clauses and {len(critical_contradictions)} critical discrepancies). Recommend issuing clarification letter before final disqualification."
+    if overall_status == "NON_COMPLIANT":
+        executive_summary = f"REJECT / CLARIFY: High rejection risk detected ({len(fail_clauses)} failed statutory clause(s), {len(critical_contradictions)} critical discrepancies). Recommend issuing clarification letter before final disqualification."
+    elif overall_status == "NEEDS_REVIEW":
+        executive_summary = f"SUPERVISORY REVIEW REQUIRED: {len(needs_review_clauses)} clause(s) require officer verification before compliance can be established."
     elif value_spotlight_active:
         savings_text = f"with INR {savings_inr:,.0f} cost savings and " if savings_inr is not None else "with "
         executive_summary = f"RECOMMENDED (VALUE-FOR-MONEY SPOTLIGHT): Fully compliant proposal {savings_text}superior warranty/hardware terms compared to standard bids."
     else:
-        executive_summary = "COMPLIANT: Bid meets all mandatory GFR requirements and technical specifications."
+        executive_summary = "COMPLIANT: Bid meets all evaluated statutory criteria and technical specifications."
 
     return {
         "rejection_risk": {

@@ -59,7 +59,7 @@ class TestContradictionDetector(unittest.TestCase):
             "local_content_pct": 0
         }
         govt = {"pan_gstin_consistent": True}
-        contradictions = detect_cross_document_contradictions(extracted, govt)
+        contradictions = detect_cross_document_contradictions(extracted, govt, tender_requirements={"min_turnover_cr": 1.5})
         c_ids = [c["contradiction_id"] for c in contradictions]
         self.assertIn("CONTRA-ELIGIBILITY-04", c_ids)
         self.assertIn("CONTRA-FRAUD-MII-05", c_ids)

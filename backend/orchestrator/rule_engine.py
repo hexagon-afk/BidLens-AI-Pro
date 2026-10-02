@@ -5,7 +5,7 @@ Evaluates GFR 2017 statutory procurement rules, MSME 2012 Exemption Orders,
 and Public Procurement (Make in India) Orders against tender requirements.
 Supports 5 evaluation statuses: PASS, FAIL, EXEMPT, NOT_APPLICABLE, NEEDS_REVIEW.
 """
-from orchestrator.govt_verify import verify_gstin_checksum, SAMPLE_GSTINS
+from orchestrator.govt_verify import verify_gstin_checksum
 
 
 def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) -> list:
@@ -45,14 +45,14 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
             "remedy": "Provide active GSTIN reactivation certificate from GST portal."
         })
     else:
-        checksum_valid = verify_gstin_checksum(gstin) or (gstin in SAMPLE_GSTINS)
+        checksum_valid = verify_gstin_checksum(gstin)
         if checksum_valid:
             results.append({
                 "clause_id": "GFR-149-GST",
                 "clause_name": "GSTIN Registration & Tax Compliance",
                 "status": "PASS",
                 "regulation_ref": "Statutory Tax Compliance / GeM Registration Norms",
-                "evidence": f"Active GSTIN {gstin} verified (Modulus-36 checksum validated offline).",
+                "evidence": f"GSTIN {gstin} format & Modulus-36 checksum validated offline.",
                 "remedy": None
             })
         else:
@@ -130,16 +130,43 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
 
     # ── 3. EMD (Earnest Money Deposit) ────────────────────────
     emd_status = extracted_data.get("emd_status")
-    emd_required = tender_requirements.get("emd_required_inr", 100000.0)
-    
-    if emd_status == "MSME_EXEMPT" or (is_msme and udyam):
+    emd_required = tender_requirements.get("emd_required_inr")
+
+    if emd_required is None:
+        results.append({
+            "clause_id": "GFR-170-EMD",
+            "clause_name": "Earnest Money Deposit (EMD)",
+            "status": "NEEDS_REVIEW",
+            "regulation_ref": "Tender Bid Security Clause / GFR 2017 Rule 170",
+            "evidence": "Tender EMD threshold not established from RFP; officer confirmation required.",
+            "remedy": "Verify applicable EMD amount in Tender RFP."
+        })
+    elif emd_required == 0.0:
+        results.append({
+            "clause_id": "GFR-170-EMD",
+            "clause_name": "Earnest Money Deposit (EMD)",
+            "status": "NOT_APPLICABLE",
+            "regulation_ref": "Tender Bid Security Clause / GFR 2017 Rule 170",
+            "evidence": "Tender specifies nil / zero EMD requirement.",
+            "remedy": None
+        })
+    elif is_msme and udyam:
         results.append({
             "clause_id": "GFR-170-EMD",
             "clause_name": "Earnest Money Deposit (EMD)",
             "status": "EXEMPT",
             "regulation_ref": "Public Procurement Policy for MSEs Order 2012, Para 10 / GFR 2017 Rule 170(i)",
-            "evidence": "Exempted from EMD submission under Central Government MSME provisions.",
+            "evidence": f"Exempted from EMD submission under Central Government MSME provisions (Udyam: {udyam}).",
             "remedy": None
+        })
+    elif is_msme and not udyam:
+        results.append({
+            "clause_id": "GFR-170-EMD",
+            "clause_name": "Earnest Money Deposit (EMD)",
+            "status": "NEEDS_REVIEW",
+            "regulation_ref": "Public Procurement Policy for MSEs Order 2012, Para 10 / GFR 2017 Rule 170(i)",
+            "evidence": "Vendor self-declares as MSME requesting EMD waiver, but valid Udyam certificate registration number was not found.",
+            "remedy": "Upload official Udyam Registration Certificate with verification QR code."
         })
     elif emd_status == "SUBMITTED":
         results.append({

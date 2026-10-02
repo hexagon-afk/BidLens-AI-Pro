@@ -206,6 +206,7 @@ def extract_tender_rfp_data(file_path: str) -> dict:
     """
     Parses a government Tender RFP document (GeM, CPPP, State Portals, Defence, Railways)
     to extract mandatory procurement conditions with flexible regex pattern matching.
+    Missing criteria remain None (unspecified) - never invented defaults.
     """
     full_text, page_count, file_type = extract_document_text(file_path)
 
@@ -235,12 +236,11 @@ def extract_tender_rfp_data(file_path: str) -> dict:
     if title_match:
         title = title_match.group(1).strip()
     else:
-        # Fallback to first non-empty meaningful line
         lines = [l.strip() for l in clean_text.split("\n") if l.strip() and not l.startswith("---") and len(l.strip()) > 10]
-        title = lines[0][:80] if lines else "Procurement of Technical Equipment & Services"
+        title = lines[0][:80] if lines else "Procurement Specification Document"
 
     # 3. Estimated Tender Value / Budget (Supports INR digits, Lakhs, and Crores)
-    budget_inr = 5000000.0
+    budget_inr = None
     budget_cr_match = re.search(r"(?:Estimated\s*(?:Tender\s*)?Value|Total\s*Value|Estimated\s*Cost|Budget|Estimated\s*Amount)[^\d]*([\d.]+)\s*(crore|cr|lakh|lakhs)", clean_text, re.IGNORECASE)
     if budget_cr_match:
         try:
@@ -248,37 +248,40 @@ def extract_tender_rfp_data(file_path: str) -> dict:
             unit = budget_cr_match.group(2).lower()
             budget_inr = (val * 10000000.0) if "cr" in unit else (val * 100000.0)
         except Exception:
-            budget_inr = 5000000.0
+            budget_inr = None
     else:
         budget_match = re.search(r"(?:Estimated\s*(?:Tender\s*)?Value|Total\s*Value|Estimated\s*Cost|Budget|Estimated\s*Amount)[:\s]*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d{2})?)", clean_text, re.IGNORECASE)
         if budget_match:
             try:
                 budget_inr = float(budget_match.group(1).replace(",", ""))
             except Exception:
-                budget_inr = 5000000.0
+                budget_inr = None
 
     # 4. Mandatory EMD (Earnest Money Deposit)
-    emd_inr = 100000.0
-    emd_cr_match = re.search(r"(?:EMD|Earnest Money Deposit|Bid Security)[^\d]*([\d.]+)\s*(crore|cr|lakh|lakhs)", clean_text, re.IGNORECASE)
-    if emd_cr_match:
-        try:
-            val = float(emd_cr_match.group(1))
-            unit = emd_cr_match.group(2).lower()
-            emd_inr = (val * 10000000.0) if "cr" in unit else (val * 100000.0)
-        except Exception:
-            emd_inr = 100000.0
+    emd_inr = None
+    if re.search(r"\b(?:no\s+emd|zero\s+emd|emd\s+is\s+nil|emd\s+exempted|nil\s+emd)\b", clean_text, re.IGNORECASE):
+        emd_inr = 0.0
     else:
-        emd_match = re.search(r"(?:EMD|Earnest Money Deposit|Bid Security)[:\s]*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d{2})?)", clean_text, re.IGNORECASE)
-        if emd_match:
+        emd_cr_match = re.search(r"(?:EMD|Earnest Money Deposit|Bid Security)[^\d]*([\d.]+)\s*(crore|cr|lakh|lakhs)", clean_text, re.IGNORECASE)
+        if emd_cr_match:
             try:
-                emd_inr = float(emd_match.group(1).replace(",", ""))
+                val = float(emd_cr_match.group(1))
+                unit = emd_cr_match.group(2).lower()
+                emd_inr = (val * 10000000.0) if "cr" in unit else (val * 100000.0)
             except Exception:
-                emd_inr = 100000.0
-        elif "2%" in clean_text or "2 percent" in clean_text.lower():
-            emd_inr = round(budget_inr * 0.02, 2)
+                emd_inr = None
+        else:
+            emd_match = re.search(r"(?:EMD|Earnest Money Deposit|Bid Security)[:\s]*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d{2})?)", clean_text, re.IGNORECASE)
+            if emd_match:
+                try:
+                    emd_inr = float(emd_match.group(1).replace(",", ""))
+                except Exception:
+                    emd_inr = None
+            elif budget_inr and ("2%" in clean_text or "2 percent" in clean_text.lower()):
+                emd_inr = round(budget_inr * 0.02, 2)
 
     # 5. Turnover Threshold (Crores / Lakhs)
-    min_turnover_cr = 1.50
+    min_turnover_cr = None
     turnover_match = re.search(r"(?:Average\s+Annual\s+Turnover|Annual\s+Turnover|Minimum\s+Turnover|Turnover)[^\d]*([\d.]+)\s*(crore|cr|lakh|lakhs)", clean_text, re.IGNORECASE)
     if turnover_match:
         try:
@@ -286,40 +289,52 @@ def extract_tender_rfp_data(file_path: str) -> dict:
             unit = turnover_match.group(2).lower()
             min_turnover_cr = val if "cr" in unit else (val / 100.0)
         except Exception:
-            min_turnover_cr = 1.50
+            min_turnover_cr = None
     else:
         num_to_match = re.search(r"(?:Turnover)[^\d]*INR\s*([\d,]+)", clean_text, re.IGNORECASE)
         if num_to_match:
             try:
                 min_turnover_cr = round(float(num_to_match.group(1).replace(",", "")) / 10000000.0, 2)
             except Exception:
-                min_turnover_cr = 1.50
+                min_turnover_cr = None
 
     # 6. Local Content % (Make in India Order 2017)
-    min_local_content_pct = 50
+    min_local_content_pct = None
     lc_match = re.search(r"(?:Local Content|Class-1|Local Supplier|MII)[^\d]*(\d{1,3})%", clean_text, re.IGNORECASE)
     if lc_match:
         try:
             min_local_content_pct = int(lc_match.group(1))
         except Exception:
-            min_local_content_pct = 50
+            min_local_content_pct = None
 
     # 7. Warranty Requirement
-    warranty_req = "3-Year Comprehensive Onsite Warranty"
-    if any(k in clean_text.lower() for k in ["5-year", "5 year", "60 months"]):
-        warranty_req = "5-Year Comprehensive Onsite Warranty"
-    elif any(k in clean_text.lower() for k in ["1-year", "1 year", "12 months"]):
-        warranty_req = "1-Year Standard OEM Warranty"
-    elif any(k in clean_text.lower() for k in ["2-year", "2 year", "24 months"]):
-        warranty_req = "2-Year Comprehensive Onsite Warranty"
+    warranty_req = None
+    min_warranty_years = None
+    w_match = re.search(r"(?:mandatory|required|minimum|specifications?)?[^\n.]{0,30}warranty[^\n.]{0,20}?(\d+(?:\.\d+)?)\s*(?:years?|yrs?|months?)", clean_text, re.IGNORECASE)
+    if w_match:
+        try:
+            val = float(w_match.group(1))
+            matched_str = w_match.group(0).lower()
+            if "month" in matched_str:
+                val = val / 12.0
+            min_warranty_years = val
+            warranty_req = f"{int(val) if val.is_integer() else val}-Year Comprehensive Onsite Warranty"
+        except Exception:
+            pass
 
-    min_warranty_years = 3
-    if "5-year" in warranty_req.lower():
-        min_warranty_years = 5
-    elif "2-year" in warranty_req.lower():
-        min_warranty_years = 2
-    elif "1-year" in warranty_req.lower():
-        min_warranty_years = 1
+    if min_warranty_years is None:
+        if any(k in clean_text.lower() for k in ["5-year warranty", "5 year warranty", "60 months warranty"]):
+            warranty_req = "5-Year Comprehensive Onsite Warranty"
+            min_warranty_years = 5.0
+        elif any(k in clean_text.lower() for k in ["3-year warranty", "3 year warranty", "36 months warranty"]):
+            warranty_req = "3-Year Comprehensive Onsite Warranty"
+            min_warranty_years = 3.0
+        elif any(k in clean_text.lower() for k in ["2-year warranty", "2 year warranty", "24 months warranty"]):
+            warranty_req = "2-Year Comprehensive Onsite Warranty"
+            min_warranty_years = 2.0
+        elif any(k in clean_text.lower() for k in ["1-year warranty", "1 year warranty", "12 months warranty"]):
+            warranty_req = "1-Year Standard OEM Warranty"
+            min_warranty_years = 1.0
 
     return {
         "filename": os.path.basename(file_path),
@@ -441,36 +456,73 @@ def extract_document_data(file_path: str) -> dict:
     else:
         is_msme = len(udyam_matches) > 0 or ("msme" in full_text.lower() and any(w in full_text.lower() for w in ["registered", "certificate", "udyam", "enterprise", "registration", "status"]))
 
-    # 8. EMD Status & Negation Handling
+    # 8. EMD Status & Scoped Negation Handling
     emd_status = "MISSING"
-    neg_emd = ["no bank guarantee", "not submitted", "not provided", "nil guarantee", "without emd", "no emd submitted", "no emd is submitted", "emd not submitted", "emd is not submitted"]
-    if any(p in full_text.lower() for p in neg_emd):
+    neg_emd_patterns = [
+        r"\b(?:no|without|nil)\s+(?:bank\s+guarantee|bg|fdr|demand\s+draft|emd|bid\s+security)\b",
+        r"\b(?:bank\s+guarantee|bg|fdr|demand\s+draft|emd|bid\s+security)\s+(?:is\s+)?(?:not\s+submitted|not\s+provided|missing|nil|not\s+attached)\b"
+    ]
+    is_explicit_no_emd = any(re.search(p, full_text, re.IGNORECASE) for p in neg_emd_patterns)
+    
+    if is_explicit_no_emd:
         emd_status = "MISSING"
-    elif any(term in full_text.lower() for term in ["bank guarantee", "bg no", "fdr", "demand draft", "1,00,000", "emd submitted", "bg submitted"]):
+    elif any(term in full_text.lower() for term in ["bank guarantee submitted", "bg submitted", "fdr submitted", "demand draft submitted", "submitted emd", "emd submitted", "bg no", "bank guarantee no"]):
+        emd_status = "SUBMITTED"
+    elif any(term in full_text.lower() for term in ["bank guarantee", "bg no", "fdr", "demand draft"]):
         emd_status = "SUBMITTED"
     elif ("exempt" in full_text.lower() or "waiver" in full_text.lower()) and is_msme:
         emd_status = "MSME_EXEMPT"
 
-    # 9. Warranty Terms & Explicit Offered Duration
-    warranty_terms = "Standard OEM Warranty"
-    warranty_years = 1.0
+    # 9. Warranty Terms & Scoped Duration Parsing
+    # Exclude experience mentions (e.g. "5 years experience. Offered warranty 1 year.")
+    clean_w_text = re.sub(r"\b\d+\s*(?:years?|yrs?)\s+(?:of\s+)?(?:experience|standing|track\s*record)\b", "", full_text, flags=re.IGNORECASE)
+    warranty_terms = "Unspecified Warranty"
+    warranty_years = None
     bonus_perks = []
-    if any(k in full_text.lower() for k in ["5-year", "5 year", "60 months"]):
-        warranty_terms = "5-Year Comprehensive 24x7 Onsite Warranty"
-        warranty_years = 5.0
-        bonus_perks.append("5-Year Extended Onsite Warranty (Standard is 1-Year)")
-    elif any(k in full_text.lower() for k in ["3-year", "3 year", "36 months"]):
-        warranty_terms = "3-Year Comprehensive Warranty"
-        warranty_years = 3.0
-    elif any(k in full_text.lower() for k in ["1-year", "1 year", "12 months"]):
-        warranty_terms = "1-Year Standard OEM Warranty"
-        warranty_years = 1.0
-    elif any(k in full_text.lower() for k in ["6-month", "6 month"]):
-        warranty_terms = "6-Month Carry-in Warranty (Sub-standard)"
-        warranty_years = 0.5
-    else:
-        warranty_terms = "Unspecified Warranty"
-        warranty_years = None
+
+    # Priority 1: Match explicit warranty declarations (e.g. "Offered warranty: 2 years", "warranty of 3 years")
+    w_explicit = re.search(r"(?:offered\s+)?warranty[:\s]+(?:of\s+)?(\d+(?:\.\d+)?)\s*(?:years?|yrs?|months?)", clean_w_text, re.IGNORECASE)
+    if not w_explicit:
+        w_explicit = re.search(r"(\d+(?:\.\d+)?)\s*[- ](?:years?|yrs?|months?)\s+(?:comprehensive|onsite|standard|oem)?\s*warranty", clean_w_text, re.IGNORECASE)
+
+    if w_explicit:
+        try:
+            val = float(w_explicit.group(1))
+            matched_phrase = w_explicit.group(0).lower()
+            if "month" in matched_phrase:
+                val = val / 12.0
+            warranty_years = val
+            if val >= 5.0:
+                warranty_terms = f"{int(val) if val.is_integer() else val}-Year Comprehensive 24x7 Onsite Warranty"
+                bonus_perks.append(f"{int(val) if val.is_integer() else val}-Year Extended Onsite Warranty")
+            elif val >= 3.0:
+                warranty_terms = f"{int(val) if val.is_integer() else val}-Year Comprehensive Warranty"
+            elif val >= 2.0:
+                warranty_terms = f"{int(val) if val.is_integer() else val}-Year Comprehensive Warranty"
+            elif val >= 1.0:
+                warranty_terms = f"{int(val) if val.is_integer() else val}-Year Standard OEM Warranty"
+            else:
+                warranty_terms = f"{int(val * 12)}-Month Carry-in Warranty (Sub-standard)"
+        except Exception:
+            pass
+
+    if warranty_years is None:
+        if any(k in clean_w_text.lower() for k in ["5-year warranty", "5 year warranty", "60 months warranty"]):
+            warranty_terms = "5-Year Comprehensive 24x7 Onsite Warranty"
+            warranty_years = 5.0
+            bonus_perks.append("5-Year Extended Onsite Warranty (Standard is 1-Year)")
+        elif any(k in clean_w_text.lower() for k in ["3-year warranty", "3 year warranty", "36 months warranty"]):
+            warranty_terms = "3-Year Comprehensive Warranty"
+            warranty_years = 3.0
+        elif any(k in clean_w_text.lower() for k in ["2-year warranty", "2 year warranty", "24 months warranty", "2 years warranty"]):
+            warranty_terms = "2-Year Comprehensive Warranty"
+            warranty_years = 2.0
+        elif any(k in clean_w_text.lower() for k in ["1-year warranty", "1 year warranty", "12 months warranty"]):
+            warranty_terms = "1-Year Standard OEM Warranty"
+            warranty_years = 1.0
+        elif any(k in clean_w_text.lower() for k in ["6-month warranty", "6 month warranty"]):
+            warranty_terms = "6-Month Carry-in Warranty (Sub-standard)"
+            warranty_years = 0.5
 
     if "32gb" in full_text.lower() and "upgrade" in full_text.lower():
         bonus_perks.append("Free 32GB DDR5 RAM Upgrade (RFP asked for 16GB)")
@@ -484,15 +536,21 @@ def extract_document_data(file_path: str) -> dict:
         local_content_pct = int(lc_match.group(1))
 
     # Proximity check for GSTIN expiration: only if "expired"/"cancelled" is close to tax/gst terms
+    # And MUST NOT be negated (e.g. "GST registration is not expired", "not cancelled")
+    gstin_expired = False
     gst_expired_pattern = r"(?:gstin?|tax\s+registration|registration\s+status|tax\s+status)[^\n\r.]{0,60}\b(?:expired|cancelled|suspended)\b"
-    gstin_expired = bool(re.search(gst_expired_pattern, full_text, re.IGNORECASE))
-    if not gstin_expired and "EXPIRED" in full_text.upper() and ("GST" in full_text.upper() or "TAX" in full_text.upper()):
-        # Check lines containing GST and EXPIRED together
+    match_exp = re.search(gst_expired_pattern, full_text, re.IGNORECASE)
+    if match_exp:
+        snippet = match_exp.group(0).lower()
+        if not re.search(r"\b(?:not|non)\s+(?:expired|cancelled|suspended)\b", snippet):
+            gstin_expired = True
+    elif "EXPIRED" in full_text.upper() and ("GST" in full_text.upper() or "TAX" in full_text.upper()):
         for line in full_text.split("\n"):
             line_up = line.upper()
             if ("GST" in line_up or "TAX" in line_up) and ("EXPIRED" in line_up or "CANCELLED" in line_up):
-                gstin_expired = True
-                break
+                if not re.search(r"\b(?:NOT|NON)\s+(?:EXPIRED|CANCELLED)\b", line_up):
+                    gstin_expired = True
+                    break
 
     return {
         "filename": os.path.basename(file_path),

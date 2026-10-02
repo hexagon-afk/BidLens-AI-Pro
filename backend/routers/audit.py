@@ -6,8 +6,8 @@ and generates downloadable Certified Black & White PDF Dossiers with Page 2 Over
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
-from orchestrator.orchestrator import run_full_audit
+from typing import Optional, Dict, Any, List, Literal
+from orchestrator.orchestrator import run_full_audit, compute_unified_audit_verdict
 from utils.pdf_generator import generate_certified_audit_pdf
 import os
 import datetime
@@ -31,8 +31,11 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(REPORTS_DIR, exist_ok=True)
 
 AUDIT_CACHE: Dict[str, Any] = {}
-AUDIT_OVERRIDES: Dict[str, Dict[str, Any]] = {}  # bid_id -> { clause_id -> { status, justification, original_status, clause_name, timestamp } }
+AUDIT_OVERRIDES: Dict[str, Dict[str, Any]] = {}  # bid_id -> { clause_id -> override_info }
+AUDIT_OVERRIDE_EVENTS: List[Dict[str, Any]] = []  # append-only event log
 ACTIVE_TENDER_CRITERIA: Dict[str, Any] = {}  # tender_id -> criteria
+
+ValidOverrideStatus = Literal["PASS", "FAIL", "EXEMPT", "NEEDS_REVIEW", "NOT_APPLICABLE"]
 
 
 class RunAuditPayload(BaseModel):
@@ -44,9 +47,9 @@ class RunAuditPayload(BaseModel):
 class ClauseOverridePayload(BaseModel):
     bid_id: str
     clause_id: str
-    clause_name: str
-    original_status: str
-    new_status: str  # "PASS", "FAIL", "EXEMPT", "NEEDS_REVIEW", "NOT_APPLICABLE"
+    clause_name: Optional[str] = ""
+    original_status: Optional[str] = None
+    new_status: ValidOverrideStatus
     justification: str
     officer_name: Optional[str] = "Procurement Officer"
 
@@ -94,7 +97,12 @@ async def trigger_audit(payload: RunAuditPayload):
         tender_reqs = ACTIVE_TENDER_CRITERIA[payload.tender_id]
 
     audit_results = await run_full_audit(target_file, tender_requirements=tender_reqs)
+    audit_results["tender_requirements"] = tender_reqs
+    audit_results["tender_id"] = payload.tender_id
+
     AUDIT_CACHE[audit_id] = audit_results
+    if payload.tender_id:
+        AUDIT_CACHE[f"{payload.tender_id}::{audit_id}"] = audit_results
 
     clean_id = audit_id.replace('.pdf','').replace('.docx','').replace('.xlsx','')
     pdf_report_path = os.path.join(REPORTS_DIR, f"Audit_Report_{clean_id}.pdf")
@@ -106,6 +114,7 @@ async def trigger_audit(payload: RunAuditPayload):
 
     return {
         "audit_id": audit_id,
+        "tender_id": payload.tender_id,
         "status": "COMPLETED",
         "overall_status": audit_results.get("overall_status", "NEEDS_REVIEW"),
         "is_compliant": audit_results.get("is_compliant", False),
@@ -121,16 +130,55 @@ def clear_all_overrides():
     Clears all recorded officer overrides across all vendor bids for a clean slate.
     """
     AUDIT_OVERRIDES.clear()
+    AUDIT_OVERRIDE_EVENTS.clear()
     return {"status": "SUCCESS", "message": "All test overrides have been completely cleared."}
 
 
 @router.post("/overrides/reset/{bid_id}")
 def reset_vendor_overrides(bid_id: str):
     """
-    Clears overrides specifically for a single vendor bid.
+    Clears overrides specifically for a single vendor bid and restores original machine verdicts.
     """
     if bid_id in AUDIT_OVERRIDES:
         AUDIT_OVERRIDES.pop(bid_id, None)
+
+    if bid_id in AUDIT_CACHE:
+        cached = AUDIT_CACHE[bid_id]
+        clauses = cached.get("clause_level_decisions", [])
+        for c in clauses:
+            if "machine_original_status" in c:
+                c["status"] = c["machine_original_status"]
+                c.pop("officer_override_note", None)
+        for b in cached.get("branch_b_clause_results", []):
+            if "machine_original_status" in b:
+                b["status"] = b["machine_original_status"]
+                b.pop("officer_override_note", None)
+
+        extracted = cached.get("branch_a_extracted_data", {})
+        contradictions = cached.get("contradictions_detected", [])
+        tender_reqs = cached.get("tender_requirements")
+
+        unified = compute_unified_audit_verdict(clauses, contradictions, extracted, tender_reqs)
+        cached["overall_status"] = unified["overall_status"]
+        cached["is_compliant"] = unified["is_compliant"]
+        cached["compliance_summary"] = unified["compliance_summary"]
+        cached["rejection_risk_analysis"] = unified["risk_and_value"]["rejection_risk"]
+        cached["value_spotlight"] = unified["risk_and_value"]["value_spotlight"]
+        cached["executive_summary"] = unified["risk_and_value"]["executive_summary"]
+        cached["bid_repair_guidance"] = unified["risk_and_value"]["bid_repair"]
+
+        clean_id = bid_id.replace('.pdf','').replace('.docx','').replace('.xlsx','')
+        pdf_report_path = os.path.join(REPORTS_DIR, f"Audit_Report_{clean_id}.pdf")
+        generate_certified_audit_pdf(cached, pdf_report_path, officer_overrides={})
+
+        return {
+            "status": "SUCCESS",
+            "bid_id": bid_id,
+            "overall_status": unified["overall_status"],
+            "message": f"Overrides for {bid_id} cleared and original verdicts restored.",
+            "results": cached
+        }
+
     return {"status": "SUCCESS", "bid_id": bid_id, "message": f"Overrides for {bid_id} cleared."}
 
 
@@ -147,76 +195,96 @@ def record_clause_override(payload: ClauseOverridePayload):
         )
 
     bid_id = payload.bid_id
-    if bid_id not in AUDIT_OVERRIDES:
-        AUDIT_OVERRIDES[bid_id] = {}
+    if bid_id not in AUDIT_CACHE:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Audit record for '{bid_id}' not found. Please trigger audit first."
+        )
+
+    cached_audit = AUDIT_CACHE[bid_id]
+    clauses = cached_audit.get("clause_level_decisions", [])
+    target_clause = None
+    for c in clauses:
+        if c.get("clause_id") == payload.clause_id:
+            target_clause = c
+            break
+
+    if not target_clause:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Clause '{payload.clause_id}' not found in audit decisions for '{bid_id}'."
+        )
+
+    # Preserve machine original status
+    if "machine_original_status" not in target_clause:
+        target_clause["machine_original_status"] = target_clause.get("status")
+
+    original_status = target_clause["machine_original_status"]
+    target_clause["status"] = payload.new_status
+    target_clause["officer_override_note"] = payload.justification.strip()
+
+    for b in cached_audit.get("branch_b_clause_results", []):
+        if b.get("clause_id") == payload.clause_id:
+            b["status"] = payload.new_status
+            b["officer_override_note"] = payload.justification.strip()
 
     timestamp_str = datetime.datetime.now().strftime("%d-%b-%Y %H:%M:%S")
 
+    if bid_id not in AUDIT_OVERRIDES:
+        AUDIT_OVERRIDES[bid_id] = {}
+
     AUDIT_OVERRIDES[bid_id][payload.clause_id] = {
         "clause_id": payload.clause_id,
-        "clause_name": payload.clause_name,
-        "original_status": payload.original_status,
+        "clause_name": target_clause.get("clause_name") or payload.clause_name,
+        "original_status": original_status,
         "status": payload.new_status,
         "justification": payload.justification.strip(),
         "officer_name": payload.officer_name,
         "timestamp": timestamp_str
     }
 
-    # Recalculate summary metrics if audit is cached
-    if bid_id in AUDIT_CACHE:
-        clauses = AUDIT_CACHE[bid_id].get("clause_level_decisions", [])
-        for c in clauses:
-            if c.get("clause_id") == payload.clause_id:
-                c["status"] = payload.new_status
-                c["officer_override_note"] = payload.justification.strip()
+    AUDIT_OVERRIDE_EVENTS.append({
+        "bid_id": bid_id,
+        "clause_id": payload.clause_id,
+        "original_status": original_status,
+        "new_status": payload.new_status,
+        "justification": payload.justification.strip(),
+        "officer_name": payload.officer_name,
+        "timestamp": timestamp_str
+    })
 
-        pass_count = sum(1 for c in clauses if c.get("status") == "PASS")
-        fail_count = sum(1 for c in clauses if c.get("status") == "FAIL")
-        exempt_count = sum(1 for c in clauses if c.get("status") == "EXEMPT")
-        needs_review_count = sum(1 for c in clauses if c.get("status") == "NEEDS_REVIEW")
-        not_applicable_count = sum(1 for c in clauses if c.get("status") == "NOT_APPLICABLE")
+    # Recalculate summary metrics and dependent outputs
+    extracted = cached_audit.get("branch_a_extracted_data", {})
+    contradictions = cached_audit.get("contradictions_detected", [])
+    tender_reqs = cached_audit.get("tender_requirements")
 
-        if fail_count > 0:
-            overall_status = "NON_COMPLIANT"
-        elif needs_review_count > 0:
-            overall_status = "NEEDS_REVIEW"
-        else:
-            overall_status = "COMPLIANT"
+    unified = compute_unified_audit_verdict(clauses, contradictions, extracted, tender_reqs)
+    cached_audit["overall_status"] = unified["overall_status"]
+    cached_audit["is_compliant"] = unified["is_compliant"]
+    cached_audit["compliance_summary"] = unified["compliance_summary"]
+    cached_audit["rejection_risk_analysis"] = unified["risk_and_value"]["rejection_risk"]
+    cached_audit["value_spotlight"] = unified["risk_and_value"]["value_spotlight"]
+    cached_audit["executive_summary"] = unified["risk_and_value"]["executive_summary"]
+    cached_audit["bid_repair_guidance"] = unified["risk_and_value"]["bid_repair"]
 
-        is_compliant = (overall_status == "COMPLIANT")
-        AUDIT_CACHE[bid_id]["is_compliant"] = is_compliant
-        AUDIT_CACHE[bid_id]["overall_status"] = overall_status
-
-        if "compliance_summary" in AUDIT_CACHE[bid_id]:
-            cs = AUDIT_CACHE[bid_id]["compliance_summary"]
-            cs["passed"] = pass_count
-            cs["failed"] = fail_count
-            cs["exempt"] = exempt_count
-            cs["needs_review"] = needs_review_count
-            cs["not_applicable"] = not_applicable_count
-            cs["overall_status"] = overall_status
-            cs["risk_tier"] = "HIGH" if overall_status == "NON_COMPLIANT" else ("MEDIUM" if overall_status == "NEEDS_REVIEW" else "LOW")
-
-        if "rejection_risk_analysis" in AUDIT_CACHE[bid_id]:
-            AUDIT_CACHE[bid_id]["rejection_risk_analysis"]["rejection_likely"] = (overall_status == "NON_COMPLIANT")
-            AUDIT_CACHE[bid_id]["rejection_risk_analysis"]["risk_tier"] = "HIGH" if overall_status == "NON_COMPLIANT" else ("MEDIUM" if overall_status == "NEEDS_REVIEW" else "LOW")
-
-        clean_id = bid_id.replace('.pdf','').replace('.docx','').replace('.xlsx','')
-        pdf_report_path = os.path.join(REPORTS_DIR, f"Audit_Report_{clean_id}.pdf")
-        generate_certified_audit_pdf(
-            AUDIT_CACHE[bid_id],
-            pdf_report_path,
-            officer_overrides=AUDIT_OVERRIDES.get(bid_id, {})
-        )
+    clean_id = bid_id.replace('.pdf','').replace('.docx','').replace('.xlsx','')
+    pdf_report_path = os.path.join(REPORTS_DIR, f"Audit_Report_{clean_id}.pdf")
+    generate_certified_audit_pdf(
+        cached_audit,
+        pdf_report_path,
+        officer_overrides=AUDIT_OVERRIDES.get(bid_id, {})
+    )
 
     return {
         "status": "RECORDED",
         "bid_id": bid_id,
         "clause_id": payload.clause_id,
+        "original_status": original_status,
         "new_status": payload.new_status,
-        "overall_status": AUDIT_CACHE.get(bid_id, {}).get("overall_status"),
-        "is_compliant": AUDIT_CACHE.get(bid_id, {}).get("is_compliant"),
-        "message": f"Verdict for '{payload.clause_name}' overridden to {payload.new_status}. Overall status recalculated to {AUDIT_CACHE.get(bid_id, {}).get('overall_status')}."
+        "overall_status": unified["overall_status"],
+        "is_compliant": unified["is_compliant"],
+        "message": f"Verdict for '{target_clause.get('clause_name')}' overridden to {payload.new_status}. Overall status recalculated to {unified['overall_status']}.",
+        "results": cached_audit
     }
 
 

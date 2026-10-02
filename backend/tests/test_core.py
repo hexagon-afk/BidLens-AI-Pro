@@ -68,7 +68,7 @@ class TestBidLensCore(unittest.TestCase):
             "local_content_pct": 60,
             "warranty": "3-Year",
             "total_quote_inr": 4900000.0,
-            "gstin": "06AAACG1122J1Z8",
+            "gstin": "06AAACG1122J1Z4",
             "gstin_expired": True
         }
         results = evaluate_compliance(ineligible_bid, tender_rules)

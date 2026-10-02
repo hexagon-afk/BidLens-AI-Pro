@@ -58,8 +58,8 @@ export const SAMPLE_AUDIT_RESULTS = [
       file_type: "PDF",
       vendor_name: "APEX LABS MICRO DEVICES LLP",
       page_count: 12,
-      gstin: "27AABCT3456L1ZV",
-      all_gstins: ["27AABCT3456L1ZV"],
+      gstin: "27AABCT3456L1Z1",
+      all_gstins: ["27AABCT3456L1Z1"],
       gstin_expired: false,
       pan: "AABCT3456L",
       all_pans: ["AABCT3456L"],
@@ -73,14 +73,14 @@ export const SAMPLE_AUDIT_RESULTS = [
       local_content_pct: 65
     },
     branch_b_clause_results: [
-      { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "PASS", regulation_ref: "GFR 2017 Rule 149", evidence: "Active GSTIN 27AABCT3456L1ZV verified.", remedy: null },
+      { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "PASS", regulation_ref: "GFR 2017 Rule 149", evidence: "Active GSTIN 27AABCT3456L1Z1 verified.", remedy: null },
       { clause_id: "GFR-160-MSME", clause_name: "Annual Financial Turnover Requirement", status: "EXEMPT", regulation_ref: "Public Procurement Policy for MSEs Order 2012 / GFR Rule 173 & MSE Policy 2012", evidence: "Registered Micro/Small Enterprise (UDYAM-MH-03-0098765). Statutory exemption granted from prior turnover criteria.", remedy: null },
       { clause_id: "GFR-170-EMD", clause_name: "Earnest Money Deposit (EMD)", status: "EXEMPT", regulation_ref: "GFR 2017 Rule 170(i) / MSME Policy 2012", evidence: "Exempted from EMD submission under Central Government MSME provisions.", remedy: null },
       { clause_id: "MII-2017-LC", clause_name: "Make in India Local Content Preference", status: "PASS", regulation_ref: "Public Procurement (Make in India) Order 2017", evidence: "Local content of 65% qualifies as Class-1 Local Supplier (Threshold >= 50%).", remedy: null },
       { clause_id: "SPEC-WARRANTY", clause_name: "Comprehensive Onsite Warranty", status: "PASS", regulation_ref: "Tender Technical Specifications", evidence: "Offers 5-Year Comprehensive 24x7 Onsite Warranty (Exceeds 3-year baseline preference).", remedy: null }
     ],
     clause_level_decisions: [
-      { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "PASS", regulation_ref: "GFR 2017 Rule 149", evidence: "Active GSTIN 27AABCT3456L1ZV verified.", remedy: null },
+      { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "PASS", regulation_ref: "GFR 2017 Rule 149", evidence: "Active GSTIN 27AABCT3456L1Z1 verified.", remedy: null },
       { clause_id: "GFR-160-MSME", clause_name: "Annual Financial Turnover Requirement", status: "EXEMPT", regulation_ref: "Public Procurement Policy for MSEs Order 2012 / GFR Rule 173 & MSE Policy 2012", evidence: "Registered Micro/Small Enterprise (UDYAM-MH-03-0098765). Statutory exemption granted from prior turnover criteria.", remedy: null },
       { clause_id: "GFR-170-EMD", clause_name: "Earnest Money Deposit (EMD)", status: "EXEMPT", regulation_ref: "GFR 2017 Rule 170(i) / MSME Policy 2012", evidence: "Exempted from EMD submission under Central Government MSME provisions.", remedy: null },
       { clause_id: "MII-2017-LC", clause_name: "Make in India Local Content Preference", status: "PASS", regulation_ref: "Public Procurement (Make in India) Order 2017", evidence: "Local content of 65% qualifies as Class-1 Local Supplier (Threshold >= 50%).", remedy: null },
@@ -141,8 +141,8 @@ export const SAMPLE_AUDIT_RESULTS = [
       file_type: "PDF",
       vendor_name: "MegaTech Solutions International Private Limited",
       page_count: 12,
-      gstin: "07AAACM9988K1Z5",
-      all_gstins: ["07AAACM9988K1Z5"],
+      gstin: "07AAACM9988K1ZO",
+      all_gstins: ["07AAACM9988K1ZO"],
       gstin_expired: false,
       pan: "AAACM9988K",
       all_pans: ["AAACM9988K"],
@@ -156,14 +156,14 @@ export const SAMPLE_AUDIT_RESULTS = [
       local_content_pct: 58
     },
     branch_b_clause_results: [
-      { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "PASS", regulation_ref: "GFR 2017 Rule 149", evidence: "Active GSTIN 07AAACM9988K1Z5 verified.", remedy: null },
+      { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "PASS", regulation_ref: "GFR 2017 Rule 149", evidence: "Active GSTIN 07AAACM9988K1ZO verified.", remedy: null },
       { clause_id: "GFR-160-TO", clause_name: "Annual Financial Turnover Requirement", status: "PASS", regulation_ref: "GFR 2017 Rule 173 & MSE Policy 2012 (Turnover Criteria)", evidence: "Average turnover of INR 45.80 Cr meets minimum threshold of INR 1.50 Cr.", remedy: null },
       { clause_id: "GFR-170-EMD", clause_name: "Earnest Money Deposit (EMD)", status: "PASS", regulation_ref: "GFR 2017 Rule 170", evidence: "Valid EMD Bank Guarantee / FDR submitted as per tender terms.", remedy: null },
       { clause_id: "MII-2017-LC", clause_name: "Make in India Local Content Preference", status: "PASS", regulation_ref: "Public Procurement (Make in India) Order 2017", evidence: "Local content of 58% qualifies as Class-1 Local Supplier (Threshold >= 50%).", remedy: null },
       { clause_id: "SPEC-WARRANTY", clause_name: "Comprehensive Onsite Warranty", status: "PASS", regulation_ref: "Tender Technical Specifications", evidence: "Offers 3-Year Comprehensive Warranty.", remedy: null }
     ],
     clause_level_decisions: [
-      { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "PASS", regulation_ref: "GFR 2017 Rule 149", evidence: "Active GSTIN 07AAACM9988K1Z5 verified.", remedy: null },
+      { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "PASS", regulation_ref: "GFR 2017 Rule 149", evidence: "Active GSTIN 07AAACM9988K1ZO verified.", remedy: null },
       { clause_id: "GFR-160-TO", clause_name: "Annual Financial Turnover Requirement", status: "PASS", regulation_ref: "GFR 2017 Rule 173 & MSE Policy 2012 (Turnover Criteria)", evidence: "Average turnover of INR 45.80 Cr meets minimum threshold of INR 1.50 Cr.", remedy: null },
       { clause_id: "GFR-170-EMD", clause_name: "Earnest Money Deposit (EMD)", status: "PASS", regulation_ref: "GFR 2017 Rule 170", evidence: "Valid EMD Bank Guarantee / FDR submitted as per tender terms.", remedy: null },
       { clause_id: "MII-2017-LC", clause_name: "Make in India Local Content Preference", status: "PASS", regulation_ref: "Public Procurement (Make in India) Order 2017", evidence: "Local content of 58% qualifies as Class-1 Local Supplier (Threshold >= 50%).", remedy: null },
@@ -215,7 +215,7 @@ export const SAMPLE_AUDIT_RESULTS = [
     compliance_score: 0.4,
     disqualification_reasons: [
       "CRITICAL: Found contradictory PAN numbers (AAACG1122J vs AAACG9999P) across proposal documents.",
-      "GSTIN 06AAACG1122J1Z8 is flagged as EXPIRED or CANCELLED in statutory tax filings.",
+      "GSTIN 06AAACG1122J1Z4 is flagged as EXPIRED or CANCELLED in statutory tax filings.",
       "Failed Make in India: 0% local content does not meet Class-1 threshold (>= 50%).",
       "Offers 6-month warranty, failing mandatory 3-Year comprehensive requirement."
     ],
@@ -224,8 +224,8 @@ export const SAMPLE_AUDIT_RESULTS = [
       file_type: "PDF",
       vendor_name: "GlobalCorp Enterprises Limited",
       page_count: 10,
-      gstin: "06AAACG1122J1Z8",
-      all_gstins: ["06AAACG1122J1Z8"],
+      gstin: "06AAACG1122J1Z4",
+      all_gstins: ["06AAACG1122J1Z4"],
       gstin_expired: true,
       pan: "AAACG1122J",
       all_pans: ["AAACG1122J", "AAACG9999P"],
@@ -239,14 +239,14 @@ export const SAMPLE_AUDIT_RESULTS = [
       local_content_pct: 0
     },
     branch_b_clause_results: [
-      { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "FAIL", regulation_ref: "Statutory Tax Compliance / GeM Registration Norms", evidence: "GSTIN 06AAACG1122J1Z8 is flagged as EXPIRED or CANCELLED.", remedy: "Provide active GSTIN reactivation certificate from GST portal." },
+      { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "FAIL", regulation_ref: "Statutory Tax Compliance / GeM Registration Norms", evidence: "GSTIN 06AAACG1122J1Z4 is flagged as EXPIRED or CANCELLED.", remedy: "Provide active GSTIN reactivation certificate from GST portal." },
       { clause_id: "GFR-160-MSME", clause_name: "Annual Financial Turnover Requirement", status: "NEEDS_REVIEW", regulation_ref: "Public Procurement Policy for MSEs Order 2012 / GFR Rule 173", evidence: "Vendor claims MSME relaxation with turnover of INR 0.85 Cr (required >= INR 1.50 Cr), but valid Udyam registration certificate is missing or unverified.", remedy: "Provide valid Udyam registration certificate for micro/small enterprise verification." },
       { clause_id: "GFR-170-EMD", clause_name: "Earnest Money Deposit (EMD)", status: "FAIL", regulation_ref: "Tender Bid Security Clause / GFR 2017 Rule 170", evidence: "EMD is MISSING and MSME exemption is unverified.", remedy: "Submit EMD of INR 1,00,000 or verified Udyam registration certificate." },
       { clause_id: "MII-2017-LC", clause_name: "Make in India Local Content Preference", status: "FAIL", regulation_ref: "Public Procurement (Make in India) Order 2017", evidence: "Local content of 0% fails Class-1 Local Supplier requirement (Minimum 50%).", remedy: "Provide OEM certificate verifying >= 50% domestic value addition." },
       { clause_id: "SPEC-WARRANTY", clause_name: "Comprehensive Onsite Warranty", status: "FAIL", regulation_ref: "Tender Technical Specifications", evidence: "Offers sub-standard warranty (6-Month Carry-in). Minimum 3-Year comprehensive warranty required.", remedy: "Provide OEM commitment letter for 3-Year onsite warranty coverage." }
     ],
     clause_level_decisions: [
-      { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "FAIL", regulation_ref: "Statutory Tax Compliance / GeM Registration Norms", evidence: "GSTIN 06AAACG1122J1Z8 is flagged as EXPIRED or CANCELLED.", remedy: "Provide active GSTIN reactivation certificate from GST portal." },
+      { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "FAIL", regulation_ref: "Statutory Tax Compliance / GeM Registration Norms", evidence: "GSTIN 06AAACG1122J1Z4 is flagged as EXPIRED or CANCELLED.", remedy: "Provide active GSTIN reactivation certificate from GST portal." },
       { clause_id: "GFR-160-MSME", clause_name: "Annual Financial Turnover Requirement", status: "NEEDS_REVIEW", regulation_ref: "Public Procurement Policy for MSEs Order 2012 / GFR Rule 173", evidence: "Vendor claims MSME relaxation with turnover of INR 0.85 Cr (required >= INR 1.50 Cr), but valid Udyam registration certificate is missing or unverified.", remedy: "Provide valid Udyam registration certificate for micro/small enterprise verification." },
       { clause_id: "GFR-170-EMD", clause_name: "Earnest Money Deposit (EMD)", status: "FAIL", regulation_ref: "Tender Bid Security Clause / GFR 2017 Rule 170", evidence: "EMD is MISSING and MSME exemption is unverified.", remedy: "Submit EMD of INR 1,00,000 or verified Udyam registration certificate." },
       { clause_id: "MII-2017-LC", clause_name: "Make in India Local Content Preference", status: "FAIL", regulation_ref: "Public Procurement (Make in India) Order 2017", evidence: "Local content of 0% fails Class-1 Local Supplier requirement (Minimum 50%).", remedy: "Provide OEM certificate verifying >= 50% domestic value addition." },
@@ -293,7 +293,7 @@ export const SAMPLE_AUDIT_RESULTS = [
     value_spotlight: { is_spotlight_candidate: false, vendor_type: "Micro & Small Enterprise (MSME)", quoted_price_inr: 5400000.0, estimated_savings_inr: null, value_highlights: [] },
     contradictions_detected: [
       { contradiction_id: "CONTRA-PAN-01", type: "CROSS_ATTACHMENT_PAN_MISMATCH", severity: "CRITICAL", title: "Conflicting PAN Numbers in Attachments", description: "Found multiple conflicting PAN numbers (AAACG1122J, AAACG9999P) between Cover Letter and Annexure documents.", impact: "High risk of proxy bidding.", remedy: "Provide unified PAN affidavit." },
-      { contradiction_id: "CONTRA-TAX-STATUS-03", type: "TAX_STATUS_CONTRADICTION", severity: "HIGH", title: "GSTIN Status Inactive / Cancelled", description: "Bid claims active operations, but GSTIN 06AAACG1122J1Z8 is recorded as CANCELLED.", impact: "Non-compliance with GFR Rule 149.", remedy: "Obtain GSTIN reactivation order." }
+      { contradiction_id: "CONTRA-TAX-STATUS-03", type: "TAX_STATUS_CONTRADICTION", severity: "HIGH", title: "GSTIN Status Inactive / Cancelled", description: "Bid claims active operations, but GSTIN 06AAACG1122J1Z4 is recorded as CANCELLED.", impact: "Non-compliance with GFR Rule 149.", remedy: "Obtain GSTIN reactivation order." }
     ],
     claim_integrity: { integrity_score: 0, integrity_tier: "CRITICAL RISK / FRAUD ANOMALY" }
   }
@@ -302,6 +302,7 @@ export const SAMPLE_AUDIT_RESULTS = [
 export const SAMPLE_RECTIFIED_RESULT = {
   file_id: "sample_bid_globalcorp_rectified_reevaluation_pdf",
   is_compliant: true,
+  overall_status: "COMPLIANT",
   compliance_score: 1.0,
   disqualification_reasons: [],
   file_info: {
@@ -309,8 +310,8 @@ export const SAMPLE_RECTIFIED_RESULT = {
     file_type: "PDF",
     vendor_name: "GlobalCorp Enterprises Limited",
     page_count: 10,
-    gstin: "06AAACG1122J1Z8",
-    all_gstins: ["06AAACG1122J1Z8"],
+    gstin: "06AAACG1122J1Z4",
+    all_gstins: ["06AAACG1122J1Z4"],
     gstin_expired: false,
     pan: "AAACG1122J",
     all_pans: ["AAACG1122J"],
@@ -324,14 +325,14 @@ export const SAMPLE_RECTIFIED_RESULT = {
     local_content_pct: 52
   },
   branch_b_clause_results: [
-    { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "PASS", regulation_ref: "GFR 2017 Rule 149", evidence: "Active GSTIN 06AAACG1122J1Z8 verified with state reactivation certificate.", remedy: null },
+    { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "PASS", regulation_ref: "GFR 2017 Rule 149", evidence: "Active GSTIN 06AAACG1122J1Z4 verified with state reactivation certificate.", remedy: null },
     { clause_id: "GFR-160-TO", clause_name: "Annual Financial Turnover Requirement", status: "PASS", regulation_ref: "GFR 2017 Rule 173 & MSE Policy 2012 (Turnover Criteria)", evidence: "Audited turnover of INR 2.10 Cr meets minimum threshold of INR 1.50 Cr.", remedy: null },
     { clause_id: "GFR-170-EMD", clause_name: "Earnest Money Deposit (EMD)", status: "PASS", regulation_ref: "GFR 2017 Rule 170", evidence: "PNB Bank Guarantee for INR 1,00,000 submitted.", remedy: null },
     { clause_id: "MII-2017-LC", clause_name: "Make in India Local Content Preference", status: "PASS", regulation_ref: "Public Procurement (Make in India) Order 2017", evidence: "Local content of 52% qualifies as Class-1 Local Supplier.", remedy: null },
     { clause_id: "SPEC-WARRANTY", clause_name: "Comprehensive Onsite Warranty", status: "PASS", regulation_ref: "Tender Technical Specifications", evidence: "Offers 3-Year Comprehensive Onsite OEM Warranty.", remedy: null }
   ],
   clause_level_decisions: [
-    { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "PASS", regulation_ref: "GFR 2017 Rule 149", evidence: "Active GSTIN 06AAACG1122J1Z8 verified with state reactivation certificate.", remedy: null },
+    { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "PASS", regulation_ref: "GFR 2017 Rule 149", evidence: "Active GSTIN 06AAACG1122J1Z4 verified with state reactivation certificate.", remedy: null },
     { clause_id: "GFR-160-TO", clause_name: "Annual Financial Turnover Requirement", status: "PASS", regulation_ref: "GFR 2017 Rule 173 & MSE Policy 2012 (Turnover Criteria)", evidence: "Audited turnover of INR 2.10 Cr meets minimum threshold of INR 1.50 Cr.", remedy: null },
     { clause_id: "GFR-170-EMD", clause_name: "Earnest Money Deposit (EMD)", status: "PASS", regulation_ref: "GFR 2017 Rule 170", evidence: "PNB Bank Guarantee for INR 1,00,000 submitted.", remedy: null },
     { clause_id: "MII-2017-LC", clause_name: "Make in India Local Content Preference", status: "PASS", regulation_ref: "Public Procurement (Make in India) Order 2017", evidence: "Local content of 52% qualifies as Class-1 Local Supplier.", remedy: null },

@@ -13,35 +13,40 @@ import re
 
 GST_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 CHAR_MAP = {c: i for i, c in enumerate(GST_CHARS)}
-SAMPLE_GSTINS = {
-    "27AABCT3456L1ZV",
-    "27AALFA5678K1Z2",
-    "06AAACG1122J1Z8",
-    "07AAACM9988K1Z5",
-    "27AAACM1234F1Z5"
-}
 
 
-def verify_gstin_checksum(gstin: str) -> bool:
+def compute_gstin_check_digit(gstin14: str) -> str:
     """
-    Computes official Indian GSTIN Modulus-36 check digit on 14 characters.
-    Validates that the 15th character matches the mathematical check digit.
+    Computes the valid 15th character Modulus-36 check digit for a 14-character GSTIN prefix.
     """
-    if not gstin or len(gstin) != 15:
-        return False
-    gstin = gstin.upper()
+    if not gstin14 or len(gstin14) != 14:
+        return ""
+    gstin14 = gstin14.upper()
     total = 0
     for i in range(14):
-        c = gstin[i]
+        c = gstin14[i]
         if c not in CHAR_MAP:
-            return False
+            return ""
         val = CHAR_MAP[c]
         multiplier = 1 if i % 2 == 0 else 2
         product = val * multiplier
         total += (product // 36) + (product % 36)
     remainder = total % 36
     check_code = (36 - remainder) % 36
-    return gstin[14] == GST_CHARS[check_code]
+    return GST_CHARS[check_code]
+
+
+def verify_gstin_checksum(gstin: str) -> bool:
+    """
+    Computes official Indian GSTIN Modulus-36 check digit on 14 characters.
+    Validates that the 15th character matches the mathematical check digit.
+    No allowlist bypasses.
+    """
+    if not gstin or len(gstin) != 15:
+        return False
+    gstin = gstin.upper()
+    expected_char = compute_gstin_check_digit(gstin[:14])
+    return bool(expected_char and gstin[14] == expected_char)
 
 
 def verify_government_credentials(extracted_data: dict) -> dict:
@@ -65,7 +70,7 @@ def verify_government_credentials(extracted_data: dict) -> dict:
     gstn_details = {}
     if gstin:
         gstin_valid_format = bool(re.match(r"^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}$", gstin))
-        checksum_valid = verify_gstin_checksum(gstin) or (gstin in SAMPLE_GSTINS)
+        checksum_valid = verify_gstin_checksum(gstin)
         
         if gstin_valid_format and checksum_valid:
             state_code = gstin[:2]
@@ -77,8 +82,8 @@ def verify_government_credentials(extracted_data: dict) -> dict:
                     "gstin": gstin,
                     "valid_format": True,
                     "checksum_valid": True,
-                    "taxpayer_status": "CANCELLED/EXPIRED",
-                    "sync_status": "Flagged - Tax Status Inactive in Document Record"
+                    "taxpayer_status": "CANCELLED/EXPIRED (IN DOCUMENT RECORD)",
+                    "sync_status": "Flagged - Tax Status Inactive in Document Record (Live Registry Unverified)"
                 }
             else:
                 gstn_status = "SYNTAX & CHECKSUM VALID (OFFLINE)"
@@ -89,7 +94,7 @@ def verify_government_credentials(extracted_data: dict) -> dict:
                     "valid_format": True,
                     "checksum_valid": True,
                     "state_jurisdiction": f"State Code {state_code}",
-                    "sync_status": "Offline Modulus-36 Checksum Verified (Live Registry Unverified)"
+                    "sync_status": "Format syntax & Modulus-36 checksum validated offline (Live Registry Unverified)"
                 }
         elif gstin_valid_format and not checksum_valid:
             gstn_status = "CHECKSUM_FAILED"
@@ -204,22 +209,22 @@ def verify_government_credentials(extracted_data: dict) -> dict:
         debarment_badge = "NEUTRAL"
         debarment_details = {"portal": "CPPP Central Debarment Watchlist", "status": "NOT_EVALUATED"}
     elif is_expired or len(set(all_pans)) > 1:
-        debarment_status = "UNDER INVESTIGATION / WATCHLIST"
+        debarment_status = "DOCUMENT ANOMALY DETECTED"
         debarment_badge = "FAIL"
         debarment_details = {
             "portal": "CPPP Central Debarment Watchlist",
-            "status": debarment_status,
-            "blacklisting_orders": "Flagged for Compliance Inconsistency / Multiple PANs",
-            "sync_status": "Heuristic Watchlist Flag Raised"
+            "status": "DOCUMENT ANOMALY (OFFLINE)",
+            "blacklisting_orders": "Document anomaly flagged: Multiple contradictory PANs or cancelled tax filing found in submission. Official CPPP database unverified.",
+            "sync_status": "Document Anomaly Flag Raised (Official CPPP API Unverified)"
         }
     else:
-        debarment_status = "NO ADVERSE RECORD (OFFLINE SAMPLE)"
+        debarment_status = "NO ADVERSE RECORD (LOCAL SAMPLE)"
         debarment_badge = "PASS"
         debarment_details = {
             "portal": "CPPP Central Debarment Watchlist",
-            "status": debarment_status,
-            "blacklisting_orders": "None on Record in local sample dataset",
-            "sync_status": "Offline Watchlist Check (CPPP API Unverified)"
+            "status": "NO ADVERSE RECORD (OFFLINE SAMPLE)",
+            "blacklisting_orders": "No adverse debarment record identified in local test dataset. Official CPPP registry unverified.",
+            "sync_status": "Offline Prototype Sample Check (Official CPPP API Unverified)"
         }
 
     # ── 7. Cross-Consistency: GSTIN vs PAN Check ──────────────
