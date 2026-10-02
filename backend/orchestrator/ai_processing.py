@@ -262,3 +262,84 @@ def extract_document_data(file_path: str) -> dict:
         base = os.path.splitext(os.path.basename(file_path))[0].replace("Bid_", "").replace("BID_", "").replace("_", " ")
         vendor_name = re.sub(r"[a-f0-9-]{36}_?", "", base).strip()
 
+    # 5. Quoted Price in INR
+    quote_matches = re.findall(r"(?:INR|Rs\.?|₹|\bTotal\b[^\d]*)\s*([\d,]+(?:\.\d{2})?)", full_text, re.IGNORECASE)
+    total_quote = None
+    if quote_matches:
+        cleaned = []
+        for q in quote_matches:
+            val_str = q.replace(",", "").strip()
+            try:
+                if val_str and float(val_str) > 10000:
+                    cleaned.append(float(val_str))
+            except ValueError:
+                continue
+        if cleaned:
+            # Prefer realistic quotation figure
+            total_quote = cleaned[0]
+
+    # 6. Self-Declared Turnover in Crores
+    turnover_cr = None
+    turnover_match = re.search(r"(?:Annual\s+Turnover|Turnover)[^\d]*([\d.]+)\s*(crore|cr|lakh|lakhs)", full_text, re.IGNORECASE)
+    if turnover_match:
+        val = float(turnover_match.group(1))
+        unit = turnover_match.group(2).lower()
+        turnover_cr = val if "cr" in unit else (val / 100.0)
+
+    # 7. EMD Status
+    emd_status = "MISSING"
+    if any(term in full_text.lower() for term in ["bank guarantee", "bg no", "fdr", "demand draft", "1,00,000", "emd submitted"]):
+        emd_status = "SUBMITTED"
+    elif ("exempt" in full_text.lower() or "waiver" in full_text.lower()) and (udyam_matches or "msme" in full_text.lower()):
+        emd_status = "MSME_EXEMPT"
+
+    # 8. Warranty Terms
+    warranty_terms = "Standard"
+    bonus_perks = []
+    if any(k in full_text.lower() for k in ["5-year", "5 year", "60 months"]):
+        warranty_terms = "5-Year Comprehensive 24x7 Onsite Warranty"
+        bonus_perks.append("5-Year Extended Onsite Warranty (Standard is 1-Year)")
+    elif any(k in full_text.lower() for k in ["3-year", "3 year", "36 months"]):
+        warranty_terms = "3-Year Comprehensive Warranty"
+    elif any(k in full_text.lower() for k in ["1-year", "1 year", "12 months"]):
+        warranty_terms = "1-Year Standard OEM Warranty"
+    elif any(k in full_text.lower() for k in ["6-month", "6 month"]):
+        warranty_terms = "6-Month Carry-in Warranty (Sub-standard)"
+
+    if "32gb" in full_text.lower() and "upgrade" in full_text.lower():
+        bonus_perks.append("Free 32GB DDR5 RAM Upgrade (RFP asked for 16GB)")
+
+    # 9. Local Content %
+    local_content_pct = 0
+    lc_match = re.search(r"(\d{1,3})%\s*(?:Class-1|Local Content|Local Value)", full_text, re.IGNORECASE)
+    if not lc_match:
+        lc_match = re.search(r"(?:Class-1|Local Content|Local Value)[^\d]*(\d{1,3})%", full_text, re.IGNORECASE)
+    if lc_match:
+        local_content_pct = int(lc_match.group(1))
+
+    gstin_expired = "EXPIRED" in full_text.upper() or "CANCELLED" in full_text.upper()
+
+    return {
+        "filename": os.path.basename(file_path),
+        "file_type": file_type,
+        "vendor_name": vendor_name,
+        "page_count": page_count,
+        "gstin": gstin_matches[0] if gstin_matches else None,
+        "all_gstins": gstin_matches,
+        "gstin_expired": gstin_expired,
+        "pan": pan_matches[0] if pan_matches else None,
+        "all_pans": clean_pans,
+        "udyam": udyam_matches[0] if udyam_matches else None,
+        "is_msme": len(udyam_matches) > 0 or "msme" in full_text.lower(),
+        "total_quote_inr": total_quote,
+        "turnover_cr": turnover_cr,
+        "emd_status": emd_status,
+        "warranty": warranty_terms,
+        "bonus_perks": bonus_perks,
+        "local_content_pct": local_content_pct,
+        "raw_text_length": len(full_text),
+        "raw_text": full_text[:1200]
+    }
+
+
+extract_pdf_data = extract_document_data
