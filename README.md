@@ -38,14 +38,14 @@ Manual evaluation is prone to:
 
 | Capability | Description |
 | :--- | :--- |
-| **Multi-Modal Document Parsing** | Digital and scanned PDF ingestion via **PyMuPDF** & **EasyOCR**, extracting text, tables, and stamped certificates. |
+| **Multi-Modal Document Parsing** | Digital and scanned document ingestion via **PyMuPDF** (digital PDFs), **RapidOCR** with **ONNX Runtime** (scanned letters/images), **python-docx** (Word proposals), and **openpyxl** (Excel BoQ schedules). |
 | **Deterministic GFR 2017 Rule Engine** | 100% deterministic rule checks (zero LLM hallucination) for **Rule 149** (Certificate Validity), **Rule 160** (Turnover), **Rule 170** (EMD calculations), and MSME exemptions. |
 | **Cross-Document Contradiction Detector** | Pinpoints mismatches in GSTIN, PAN, company names, OEM authorization letters (MAF), and turnover figures across multiple uploaded attachments. |
 | **Clause-to-Evidence Knowledge Graph** | Built with **NetworkX**, establishing transparent relationships: `Regulation` ➔ `Clause` ➔ `Required Evidence` ➔ `Submitted Document` ➔ `Audit Decision`. |
 | **Explainable Rejection-Risk Scorer** | Replaces black-box AI scores with grounded risk reports citing specific clause failures, regulation references, and evidence page numbers. |
-| **Live Government Registry Verification** | Integrations for automated checks against **GSTN** (active taxpayer status) and **MCA21** (corporate registration). |
-| **Enterprise Security & Anti-Tampering** | Instant **SHA-256 cryptographic fingerprinting** upon upload, prompt-injection sanitization, and XML document boundary tagging. |
-| **Human-in-the-Loop Review** | Officer decision portal for approving, rejecting, or requesting clarifications with mandatory justification trails logged immutably. |
+| **Statutory Checksum & Offline Registry Engine** | Offline **Modulus-36 GSTIN checksum verification**, PAN structural extraction, and simulated GSTN/MCA21 baseline checks without external data leakage. |
+| **Security & Integrity Tracking** | Instant **SHA-256 cryptographic fingerprinting** upon upload, prompt-injection defense filters, and strict boundary validation. |
+| **Human-in-the-Loop Supervisory Review** | Officer decision portal for approving, rejecting, or overriding clause verdicts with mandatory written justifications and structured audit event logging. |
 
 ---
 
@@ -68,8 +68,8 @@ BidLens AI utilizes a validated **6-Layer Architecture** to guarantee determinis
 │                  Layer 3: Central Audit Orchestrator                   │
 │  ┌───────────────────────┬──────────────────────┬────────────────────┐ │
 │  │      Branch A:        │      Branch B:       │     Branch C:      │ │
-│  │   AI Processing       │  GFR 2017 Rule Engine│ Govt Verification  │ │
-│  │ (OCR + spaCy + LLMs)  │ (Deterministic Code) │   (GSTN + MCA21)   │ │
+│  │   Vision Extraction   │  GFR 2017 Rule Engine│ Govt Verification  │ │
+│  │ (RapidOCR + PyMuPDF)  │ (Deterministic Code) │   (GSTN + MCA21)   │ │
 │  └───────────────────────┴──────────────────────┴────────────────────┘ │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │ Aggregated Findings
@@ -334,10 +334,10 @@ npm -v
 
 ## 🛡️ Security & Compliance Standards
 
-1. **Anti-Tampering Fingerprint:** Every uploaded document is hashed with SHA-256 upon reception. The hash is verified before downstream processing to prevent in-flight file modification.
-2. **Prompt Injection Defense:** Before any LLM processing, documents pass through an injection filter scrubbing jailbreak strings (`ignore previous instructions`, `system prompt:`) and are strictly wrapped inside `<UNTRUSTED_DOCUMENT>` XML boundaries.
-3. **Statutory Non-Hallucination:** Crucial procurement statutes (GFR Rules 149, 160, 170) are processed through deterministic Python functions rather than generative models.
-4. **Immutable Decision Trail:** All procurement officer approvals, rejections, and justifications are permanently recorded in `audit_decision_trail.json` with timestamp and officer ID.
+1. **Cryptographic Fingerprint:** Every uploaded document is hashed with SHA-256 upon reception. The hash is verified before downstream processing to track document integrity.
+2. **Prompt Injection Defense & Boundary Tagging:** Text extracted from untrusted external uploads is filtered for adversarial control directives and wrapped inside `<UNTRUSTED_DOCUMENT>` XML boundaries for security containment.
+3. **Statutory Non-Hallucination:** Crucial procurement statutes (GFR Rules 149, 160, 170, and MII Order 2017) are processed through deterministic Python functions rather than generative models.
+4. **Structured Decision Trail:** All procurement officer approvals, overrides, and justifications are permanently recorded in `audit_decision_trail.json` with timestamp and officer ID.
 
 ---
 

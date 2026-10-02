@@ -335,7 +335,7 @@ def generate_certified_audit_pdf(
             Paragraph(f"<b>Procurement Officer:</b> {eval_officer}", body_style),
         ],
         [
-            Paragraph("<b>Integrity Check:</b> SHA-256 Verified & Tamper-Proof", body_style),
+            Paragraph("<b>Integrity Check:</b> SHA-256 Digest Computed (Prototype Integrity Tracking)", body_style),
             Paragraph(f"<b>Designation:</b> {eval_designation}", body_style),
         ],
         [
@@ -350,9 +350,9 @@ def generate_certified_audit_pdf(
                 body_style
             ),
             Paragraph(
-                "<b>Statutory Verification Notice:</b><br/>"
-                "This document is a certified public procurement audit dossier generated under GFR 2017. "
-                "Any supervisory override is recorded below with mandatory legal justification.",
+                "<b>Procurement Advisory Notice:</b><br/>"
+                "This document is an automated procurement evaluation report generated under GFR 2017 baseline rules for procurement officer review. "
+                "Any supervisory override is recorded below with officer justification.",
                 body_style
             )
         ]

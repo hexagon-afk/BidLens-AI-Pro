@@ -372,6 +372,10 @@ def build_globalcorp_rectified():
 
 
 if __name__ == "__main__":
+    import shutil
+    BACKEND_SAMPLE_DIR = os.path.join(BASE_DIR, "..", "backend", "data", "sample_bids")
+    os.makedirs(BACKEND_SAMPLE_DIR, exist_ok=True)
+
     print("Generating comprehensive multi-page sample procurement files...")
     f1 = build_tender_rfp()
     print("1. Generated Tender RFP:", f1, os.path.getsize(f1), "bytes")
@@ -383,4 +387,13 @@ if __name__ == "__main__":
     print("4. Generated GlobalCorp Ineligible Bid:", f4, os.path.getsize(f4), "bytes")
     f5 = build_globalcorp_rectified()
     print("5. Generated GlobalCorp Rectified Bid:", f5, os.path.getsize(f5), "bytes")
-    print("All multi-page sample files generated successfully!")
+
+    # Synchronize all sample files to backend/data/sample_bids container directory
+    for item in os.listdir(SAMPLE_DIR):
+        src_path = os.path.join(SAMPLE_DIR, item)
+        dst_path = os.path.join(BACKEND_SAMPLE_DIR, item)
+        if os.path.isfile(src_path):
+            shutil.copy2(src_path, dst_path)
+            print(f"Synced {item} -> backend/data/sample_bids")
+
+    print("All sample files synchronized across both directories successfully!")

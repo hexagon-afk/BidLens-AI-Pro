@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List, Literal
 from orchestrator.orchestrator import run_full_audit, compute_unified_audit_verdict
+from evidence_risk.graph_engine import build_compliance_knowledge_graph
 from utils.pdf_generator import generate_certified_audit_pdf
 import os
 import datetime
@@ -142,6 +143,13 @@ def reset_vendor_overrides(bid_id: str):
     if bid_id in AUDIT_OVERRIDES:
         AUDIT_OVERRIDES.pop(bid_id, None)
 
+    AUDIT_OVERRIDE_EVENTS.append({
+        "bid_id": bid_id,
+        "action": "RESET",
+        "message": f"All overrides for {bid_id} cleared; machine verdicts restored.",
+        "timestamp": datetime.datetime.now().strftime("%d-%b-%Y %H:%M:%S")
+    })
+
     if bid_id in AUDIT_CACHE:
         cached = AUDIT_CACHE[bid_id]
         clauses = cached.get("clause_level_decisions", [])
@@ -166,6 +174,12 @@ def reset_vendor_overrides(bid_id: str):
         cached["value_spotlight"] = unified["risk_and_value"]["value_spotlight"]
         cached["executive_summary"] = unified["risk_and_value"]["executive_summary"]
         cached["bid_repair_guidance"] = unified["risk_and_value"]["bid_repair"]
+        cached["knowledge_graph"] = build_compliance_knowledge_graph(
+            extracted, clauses, cached.get("branch_c_govt_verification", {})
+        )
+
+        if cached.get("tender_id"):
+            AUDIT_CACHE[f"{cached['tender_id']}::{bid_id}"] = cached
 
         clean_id = bid_id.replace('.pdf','').replace('.docx','').replace('.xlsx','')
         pdf_report_path = os.path.join(REPORTS_DIR, f"Audit_Report_{clean_id}.pdf")
@@ -175,8 +189,10 @@ def reset_vendor_overrides(bid_id: str):
             "status": "SUCCESS",
             "bid_id": bid_id,
             "overall_status": unified["overall_status"],
+            "is_compliant": unified["is_compliant"],
             "message": f"Overrides for {bid_id} cleared and original verdicts restored.",
-            "results": cached
+            "results": cached,
+            "audit_result": cached
         }
 
     return {"status": "SUCCESS", "bid_id": bid_id, "message": f"Overrides for {bid_id} cleared."}
@@ -266,6 +282,12 @@ def record_clause_override(payload: ClauseOverridePayload):
     cached_audit["value_spotlight"] = unified["risk_and_value"]["value_spotlight"]
     cached_audit["executive_summary"] = unified["risk_and_value"]["executive_summary"]
     cached_audit["bid_repair_guidance"] = unified["risk_and_value"]["bid_repair"]
+    cached_audit["knowledge_graph"] = build_compliance_knowledge_graph(
+        extracted, clauses, cached_audit.get("branch_c_govt_verification", {})
+    )
+
+    if cached_audit.get("tender_id"):
+        AUDIT_CACHE[f"{cached_audit['tender_id']}::{bid_id}"] = cached_audit
 
     clean_id = bid_id.replace('.pdf','').replace('.docx','').replace('.xlsx','')
     pdf_report_path = os.path.join(REPORTS_DIR, f"Audit_Report_{clean_id}.pdf")
@@ -284,7 +306,8 @@ def record_clause_override(payload: ClauseOverridePayload):
         "overall_status": unified["overall_status"],
         "is_compliant": unified["is_compliant"],
         "message": f"Verdict for '{target_clause.get('clause_name')}' overridden to {payload.new_status}. Overall status recalculated to {unified['overall_status']}.",
-        "results": cached_audit
+        "results": cached_audit,
+        "audit_result": cached_audit
     }
 
 

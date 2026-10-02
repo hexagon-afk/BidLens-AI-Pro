@@ -37,7 +37,7 @@ BidLens AI is an intelligent procurement compliance auditor designed for the **G
 * **Deterministic GFR 2017 Rule Engine:** Zero-hallucination compliance audits for Rules 149, 160, 170 and MSME Order 2012.
 * **Cross-Document Contradiction Detector:** Detects contradictory PANs, expired GSTINs, and inflated turnover claims across attachments.
 * **100% Sovereign Edge Ready:** Operates fully air-gapped with zero external cloud retention.
-* **Cryptographic Tamper-Proofing:** Immediate SHA-256 fingerprinting on document receipt.
+* **Cryptographic Tamper-Detection:** Immediate SHA-256 fingerprinting on document receipt.
 """,
     version="1.0.0",
     contact={

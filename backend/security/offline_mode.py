@@ -32,8 +32,10 @@ def get_system_health_status() -> dict:
         "security_integrity": {
             "cryptographic_fingerprinting": "SHA-256 ENABLED",
             "prompt_injection_sanitizer": "ACTIVE",
+            "tamper_evident_audit_log": "ACTIVE (LOCAL_SHA256)",
             "tamper_proof_audit_log": "ACTIVE",
-            "cert_in_compliance": "PASS"
+            "cert_in_compliance": "PASS",
+            "cert_in_guidelines_alignment": "LOCAL_PROTOTYPE_BASELINE"
         },
         "environment": {
             "os": os_name,

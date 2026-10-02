@@ -1,7 +1,7 @@
 """
 Officer Review, Signature Management & Immutable Audit Trail Router - Layer 5
 Handles procurement officer decisions, digital signature image upload,
-mandatory justifications, and tamper-proof decision logging.
+mandatory justifications, and structured decision logging.
 """
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel

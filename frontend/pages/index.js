@@ -299,10 +299,11 @@ export default function Home() {
               file_id: vendor.file_id,
               tender_id: tData.tender_data.tender_id,
               tender_requirements: {
+                budget_inr: tData.tender_data.budget_inr,
                 min_turnover_cr: tData.tender_data.min_turnover_cr,
                 emd_required_inr: tData.tender_data.emd_inr,
                 min_local_content_pct: tData.tender_data.min_local_content_pct,
-                min_warranty_years: tData.tender_data.min_warranty_years || 3,
+                min_warranty_years: tData.tender_data.min_warranty_years,
               }
             }),
             signal: controller.signal
@@ -377,10 +378,11 @@ export default function Home() {
           file_id: data.file_id,
           tender_id: tenderDocument?.tender_id || 'GEM/2026/B/892100',
           tender_requirements: tenderDocument ? {
+            budget_inr: tenderDocument.budget_inr,
             min_turnover_cr: tenderDocument.min_turnover_cr,
             emd_required_inr: tenderDocument.emd_inr,
             min_local_content_pct: tenderDocument.min_local_content_pct,
-            min_warranty_years: tenderDocument.min_warranty_years || 3,
+            min_warranty_years: tenderDocument.min_warranty_years,
           } : null
         }),
         signal: controller.signal
@@ -508,10 +510,11 @@ export default function Home() {
           file_id: vendor.file_id,
           tender_id: tenderDocument.tender_id,
           tender_requirements: {
+            budget_inr: tenderDocument.budget_inr,
             min_turnover_cr: tenderDocument.min_turnover_cr,
             emd_required_inr: tenderDocument.emd_inr,
             min_local_content_pct: tenderDocument.min_local_content_pct,
-            min_warranty_years: tenderDocument.min_warranty_years || 3,
+            min_warranty_years: tenderDocument.min_warranty_years,
           }
         }),
         });
@@ -602,11 +605,17 @@ export default function Home() {
       });
 
       // Update with recomputed audit_result from backend
-      if (data.audit_result) {
-        const updated = data.audit_result;
+      const updated = data.audit_result || data.results;
+      if (updated) {
+        updated.file_id = selectedVendor.file_id;
         setSelectedVendor(updated);
         setSelectedEvidenceClause(updated.clause_level_decisions?.find((c) => c.clause_id === clauseId) || { ...clause, status: newStatus });
-        setBids((prev) => prev.map((b) => (b.file_id === selectedVendor.file_id ? updated : b)));
+        setBids((prev) => {
+          const nextBids = prev.map((b) => (b.file_id === selectedVendor.file_id ? updated : b));
+          const compliantOnes = nextBids.filter((b) => b?.is_compliant);
+          setShortlistedVendors(compliantOnes);
+          return nextBids;
+        });
       } else {
         // Fallback manual clause update
         const updatedClauses = (selectedVendor.clause_level_decisions || []).map((c) => {
@@ -641,9 +650,15 @@ export default function Home() {
         return next;
       });
 
-      if (resetData.results) {
-        const freshVendor = resetData.results;
-        setBids((prev) => prev.map((b) => (b.file_id === v.file_id ? freshVendor : b)));
+      if (resetData.results || resetData.audit_result) {
+        const freshVendor = resetData.results || resetData.audit_result;
+        freshVendor.file_id = v.file_id;
+        setBids((prev) => {
+          const nextBids = prev.map((b) => (b.file_id === v.file_id ? freshVendor : b));
+          const compliantOnes = nextBids.filter((b) => b?.is_compliant);
+          setShortlistedVendors(compliantOnes);
+          return nextBids;
+        });
         if (selectedVendor && selectedVendor.file_id === v.file_id) {
           setSelectedVendor(freshVendor);
           setSelectedEvidenceClause(freshVendor.clause_level_decisions ? freshVendor.clause_level_decisions[0] : null);
@@ -657,17 +672,24 @@ export default function Home() {
             file_id: v.file_id,
             tender_id: tenderDocument?.tender_id || 'GEM/2026/B/892100',
             tender_requirements: tenderDocument ? {
+              budget_inr: tenderDocument.budget_inr,
               min_turnover_cr: tenderDocument.min_turnover_cr,
               emd_required_inr: tenderDocument.emd_inr,
               min_local_content_pct: tenderDocument.min_local_content_pct,
-              min_warranty_years: tenderDocument.min_warranty_years || 3,
+              min_warranty_years: tenderDocument.min_warranty_years,
             } : null
           }),
         });
         if (auditRes.ok) {
           const auditData = await auditRes.json();
           const freshVendor = auditData.results;
-          setBids((prev) => prev.map((b) => (b.file_id === v.file_id ? freshVendor : b)));
+          freshVendor.file_id = v.file_id;
+          setBids((prev) => {
+            const nextBids = prev.map((b) => (b.file_id === v.file_id ? freshVendor : b));
+            const compliantOnes = nextBids.filter((b) => b?.is_compliant);
+            setShortlistedVendors(compliantOnes);
+            return nextBids;
+          });
           if (selectedVendor && selectedVendor.file_id === v.file_id) {
             setSelectedVendor(freshVendor);
             setSelectedEvidenceClause(freshVendor.clause_level_decisions ? freshVendor.clause_level_decisions[0] : null);
@@ -723,10 +745,11 @@ export default function Home() {
         file_id: fileId,
         tender_id: tenderDocument?.tender_id || 'GEM/2026/B/892100',
         tender_requirements: tenderDocument ? {
+          budget_inr: tenderDocument.budget_inr,
           min_turnover_cr: tenderDocument.min_turnover_cr,
           emd_required_inr: tenderDocument.emd_inr,
           min_local_content_pct: tenderDocument.min_local_content_pct,
-          min_warranty_years: tenderDocument.min_warranty_years || 3,
+          min_warranty_years: tenderDocument.min_warranty_years,
         } : null
       }),
       });

@@ -160,7 +160,7 @@ class TestAuditRemediationGates(unittest.TestCase):
         """Gate 10: '5 years experience. Offered warranty: 1 year' extracts 1.0 yr warranty (not 5.0)."""
         import tempfile
         with tempfile.NamedTemporaryFile(suffix=".txt", mode="w", delete=False) as fp:
-            fp.write("Company has 5 years experience in supplying IT hardware. Offered warranty: 1 year comprehensive onsite warranty.")
+            fp.write("Company has 5 years experience in supplying IT hardware. Offered warranty: 1 year.")
             temp_path = fp.name
 
         try:
@@ -248,6 +248,108 @@ class TestAuditRemediationGates(unittest.TestCase):
             # Reset overrides
             reset_res = reset_vendor_overrides("Bid_GlobalCorp_Rectified_ReEvaluation.pdf")
             self.assertEqual(reset_res["overall_status"], "COMPLIANT")
+
+    def test_gate_15_tender_emd_not_wiped_by_mse_exemption(self):
+        """Gate 15: Tender with positive EMD and MSE exemption text extracts base EMD, not 0.0."""
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write("Government e-Marketplace. Tender Ref: GEM/2026/B/892100. EMD INR 100000. EMD exempted for eligible MSE bidders.")
+            temp_path = f.name
+        try:
+            t_data = extract_tender_rfp_data(temp_path)
+            self.assertEqual(t_data["emd_inr"], 100000.0)
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    def test_gate_16_warranty_offer_vs_quoted_requirement(self):
+        """Gate 16: Proposal quoting tender requirement (3 yr) but offering (1 yr) resolves to 1.0 yr."""
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write("Bidder Proposal. GSTIN: 27AABCT3456L1Z1. PAN: AABCT3456L. Required warranty: 3 years. Offered warranty: 1 year. Local content 60%.")
+            temp_path = f.name
+        try:
+            v_data = extract_document_data(temp_path)
+            self.assertEqual(v_data["warranty_years"], 1.0)
+            self.assertIn("1-Year", v_data["warranty"])
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    def test_gate_17_warranty_carry_in_no_hallucinated_onsite(self):
+        """Gate 17: Proposal offering 5 years carry-in does not hallucinate onsite or 24x7 coverage."""
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write("Commercial Bid. GSTIN: 27AABCT3456L1Z1. PAN: AABCT3456L. Warranty: 5 years carry-in only. Local content 60%.")
+            temp_path = f.name
+        try:
+            v_data = extract_document_data(temp_path)
+            self.assertEqual(v_data["warranty_years"], 5.0)
+            self.assertIn("Carry-in", v_data["warranty"])
+            self.assertNotIn("Onsite", v_data["warranty"])
+            self.assertNotIn("24x7", v_data["warranty"])
+            self.assertEqual(v_data["bonus_perks"], [])
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    def test_gate_18_emd_shortfall_fails(self):
+        """Gate 18: Submitting an instrument amount below tender requirement results in FAIL with shortfall."""
+        bidder = {
+            "gstin": "27AABCT3456L1Z1",
+            "turnover_cr": 5.0,
+            "emd_status": "SUBMITTED",
+            "emd_amount_inr": 100.0,
+            "local_content_pct": 60,
+            "warranty_years": 3.0
+        }
+        res = evaluate_compliance(bidder, {"emd_required_inr": 100000.0, "min_turnover_cr": 1.5, "min_local_content_pct": 50, "min_warranty_years": 3})
+        emd_clause = next(c for c in res if c["clause_id"] == "GFR-170-EMD")
+        self.assertEqual(emd_clause["status"], "FAIL")
+        self.assertIn("falls short of required", emd_clause["evidence"])
+        self.assertIn("Shortfall: INR 99,900", emd_clause["evidence"])
+
+    def test_gate_19_empty_unreadable_document_returns_needs_review_all_clauses(self):
+        """Gate 19: Empty or unreadable document returns NEEDS_REVIEW across all 5 clauses."""
+        bidder = {"raw_text_length": 5, "is_unreadable": True}
+        res = evaluate_compliance(bidder, {"min_turnover_cr": 1.5, "emd_required_inr": 100000.0, "min_local_content_pct": 50, "min_warranty_years": 3})
+        self.assertEqual(len(res), 5)
+        for clause in res:
+            self.assertEqual(clause["status"], "NEEDS_REVIEW", f"Clause {clause['clause_id']} did not return NEEDS_REVIEW")
+
+    def test_gate_20_empty_clause_evaluation_prevents_compliant(self):
+        """Gate 20: An empty clause results list in compute_unified_audit_verdict returns NEEDS_REVIEW, never COMPLIANT."""
+        verdict = compute_unified_audit_verdict([], [], extracted={})
+        self.assertEqual(verdict["overall_status"], "NEEDS_REVIEW")
+        self.assertFalse(verdict["is_compliant"])
+
+    def test_gate_21_override_endpoint_returns_both_results_and_audit_result_and_updates_graph(self):
+        """Gate 21: Override endpoint returns both results and audit_result keys and rebuilds knowledge graph."""
+        async def run_test():
+            payload = RunAuditPayload(
+                file_id="Bid_GlobalCorp_Rectified_ReEvaluation.pdf",
+                tender_requirements={"min_turnover_cr": 1.0, "min_warranty_years": 3, "min_local_content_pct": 50, "emd_required_inr": 100000}
+            )
+            audit_res = await trigger_audit(payload)
+            self.assertIn("results", audit_res)
+
+            override_payload = ClauseOverridePayload(
+                bid_id="Bid_GlobalCorp_Rectified_ReEvaluation.pdf",
+                clause_id="SPEC-WARRANTY",
+                clause_name="Comprehensive Onsite Warranty",
+                original_status="PASS",
+                new_status="FAIL",
+                justification="Supervisory override for testing"
+            )
+            override_res = record_clause_override(override_payload)
+            self.assertIn("results", override_res)
+            self.assertIn("audit_result", override_res)
+            self.assertIn("knowledge_graph", override_res["results"])
+
+            reset_res = reset_vendor_overrides("Bid_GlobalCorp_Rectified_ReEvaluation.pdf")
+            self.assertIn("results", reset_res)
+            self.assertIn("audit_result", reset_res)
+            self.assertIn("knowledge_graph", reset_res["results"])
 
         asyncio.run(run_test())
 

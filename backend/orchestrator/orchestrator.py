@@ -26,12 +26,7 @@ async def run_full_audit(file_path: str, tender_requirements: dict = None) -> di
         raise FileNotFoundError(f"File not found: {file_path}")
 
     if tender_requirements is None:
-        tender_requirements = {
-            "min_turnover_cr": 1.50,
-            "emd_required_inr": 100000.0,
-            "min_local_content_pct": 50,
-            "min_warranty_years": 3,
-        }
+        tender_requirements = {}
 
     # ── 1. Branch A: Document Extraction ───────────────────────
     extracted = await asyncio.to_thread(extract_document_data, file_path)
@@ -104,7 +99,9 @@ def compute_unified_audit_verdict(
     # Any statutory failure or critical identity fraud prevents compliance
     if fail_count > 0 or has_critical_contra:
         overall_status = "NON_COMPLIANT"
-    elif needs_review_count > 0 or has_high_contra:
+    elif needs_review_count > 0 or has_high_contra or len(clause_results) == 0:
+        overall_status = "NEEDS_REVIEW"
+    elif (pass_count + exempt_count + not_applicable_count) == 0:
         overall_status = "NEEDS_REVIEW"
     else:
         overall_status = "COMPLIANT"
