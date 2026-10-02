@@ -20,7 +20,11 @@ PROJECT_ROOT = os.path.dirname(BACKEND_DIR)
 
 UPLOAD_DIR = os.path.join(BACKEND_DIR, "uploaded_docs")
 REPORTS_DIR = os.path.join(BACKEND_DIR, "generated_reports")
-SAMPLE_BIDS_DIR = os.path.join(PROJECT_ROOT, "data", "sample_bids")
+SAMPLE_DIRS = [
+    os.path.join(PROJECT_ROOT, "data", "sample_bids"),
+    os.path.join(BACKEND_DIR, "data", "sample_bids"),
+    os.path.join(BACKEND_DIR, "..", "data", "sample_bids"),
+]
 SIG_FILE = os.path.join(UPLOAD_DIR, "officer_signature.png")
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -58,14 +62,18 @@ async def trigger_audit(payload: RunAuditPayload):
 
     if os.path.exists(UPLOAD_DIR):
         for f in os.listdir(UPLOAD_DIR):
-            if f.startswith(file_id) or f == file_id:
+            if f == file_id or f.startswith(file_id) or file_id.lower() in f.lower():
                 target_file = os.path.join(UPLOAD_DIR, f)
                 break
 
-    if not target_file and os.path.exists(SAMPLE_BIDS_DIR):
-        for f in os.listdir(SAMPLE_BIDS_DIR):
-            if file_id.lower() in f.lower() or f.lower() == file_id.lower():
-                target_file = os.path.join(SAMPLE_BIDS_DIR, f)
+    if not target_file:
+        for sdir in SAMPLE_DIRS:
+            if os.path.exists(sdir):
+                for f in os.listdir(sdir):
+                    if file_id.lower() in f.lower() or f.lower() == file_id.lower():
+                        target_file = os.path.join(sdir, f)
+                        break
+            if target_file:
                 break
 
     if not target_file or not os.path.exists(target_file):
