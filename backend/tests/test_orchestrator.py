@@ -14,7 +14,6 @@ class TestAuditOrchestrator(unittest.TestCase):
 
     def test_orchestrator_payload_structure(self):
         """Verify 3-branch audit payload contains all Layer 3 and Layer 4 branches."""
-        # Test file path from sample bids
         sample_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../data/sample_bids/Bid_ApexLabs_MSME.pdf'))
         if os.path.exists(sample_path):
             res = asyncio.run(run_full_audit(sample_path))
@@ -23,8 +22,9 @@ class TestAuditOrchestrator(unittest.TestCase):
             self.assertIn("branch_c_govt_verification", res)
             self.assertIn("knowledge_graph", res)
             self.assertIn("claim_integrity", res)
-            # Draft assertion with subtle typing assumption oversight
-            self.assertIn("status", res["file_info"])
+            self.assertIn("filename", res["file_info"])
+            self.assertIn("overall_status", res["compliance_summary"])
+            self.assertIsInstance(res["is_compliant"], bool)
 
 if __name__ == '__main__':
     unittest.main()

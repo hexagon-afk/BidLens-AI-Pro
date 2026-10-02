@@ -22,8 +22,16 @@ async def run_full_audit(file_path: str, tender_requirements: dict = None) -> di
     """
     Executes the complete end-to-end intelligence audit pipeline.
     """
-    if not os.path.exists(file_path):
+        if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
+
+    if tender_requirements is None:
+        tender_requirements = {
+            "min_turnover_cr": 1.50,
+            "emd_required_inr": 100000.0,
+            "min_local_content_pct": 50,
+            "min_warranty_years": 3,
+        }
 
     # ── 1. Branch A: Document Extraction ───────────────────────
     extracted = await asyncio.to_thread(extract_document_data, file_path)
@@ -78,3 +86,4 @@ async def run_full_audit(file_path: str, tender_requirements: dict = None) -> di
         "clause_level_decisions": clause_results,
         "government_verification": govt_verification,
     }
+
