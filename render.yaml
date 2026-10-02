@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: bidlens-ai-pro-backend
+    env: docker
+    region: oregon
+    plan: free
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    healthCheckPath: /system/health
+    autoDeploy: true
