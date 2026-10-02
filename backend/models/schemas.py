@@ -17,7 +17,7 @@ class DocumentUploadResponse(BaseModel):
 
 # -- Audit -------------------------------------------------
 class AuditRequest(BaseModel):
-    file_id: int
+    file_id: str
     tender_id: Optional[str] = None
     vendor_name: Optional[str] = None
 
@@ -52,4 +52,4 @@ class OfficerDecision(BaseModel):
     audit_id: str
     action: str            # "APPROVE", "REJECT", "CLARIFY"
     justification: str     # Mandatory reason (immutably logged)
-    officer_id: str
+    officer_id: Optional[str] = None
