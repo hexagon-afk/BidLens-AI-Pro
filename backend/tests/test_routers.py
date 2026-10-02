@@ -31,3 +31,15 @@ class TestDocumentRouter(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main()
 
+
+
+from routers.audit import router as audit_router
+
+class TestAuditRouter(unittest.TestCase):
+    def test_audit_router_routes_registered(self):
+        """Verify audit run, clause override, status polling and PDF download routes."""
+        routes = [r.path for r in audit_router.routes]
+        self.assertIn("/run", routes)
+        self.assertIn("/clause-override", routes)
+        self.assertIn("/status/{audit_id}", routes)
+        self.assertIn("/report/pdf/{audit_id}", routes)
