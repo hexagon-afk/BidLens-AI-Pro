@@ -43,3 +43,16 @@ class TestAuditRouter(unittest.TestCase):
         self.assertIn("/clause-override", routes)
         self.assertIn("/status/{audit_id}", routes)
         self.assertIn("/report/pdf/{audit_id}", routes)
+
+
+from routers.review import router as review_router
+
+class TestReviewRouter(unittest.TestCase):
+    def test_review_router_routes_registered(self):
+        """Verify officer decision, digital signature and audit trail routes."""
+        routes = [r.path for r in review_router.routes]
+        self.assertIn("/signature/upload", routes)
+        self.assertIn("/signature/status", routes)
+        self.assertIn("/decision", routes)
+        self.assertIn("/log/{audit_id}", routes)
+        self.assertIn("/all-decisions", routes)
