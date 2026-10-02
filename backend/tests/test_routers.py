@@ -19,5 +19,15 @@ class TestDocumentRouter(unittest.TestCase):
         self.assertIn(".xlsx", ALLOWED_EXTENSIONS)
         self.assertIn(".png", ALLOWED_EXTENSIONS)
 
+
+    def test_sample_loader_routes_registered(self):
+        """Verify 1-click sample document loader and list endpoints."""
+        routes = [r.path for r in doc_router.routes]
+        self.assertIn("/tender/sample", routes)
+        self.assertIn("/sample/vendor-bids", routes)
+        self.assertIn("/sample/load/{sample_name}", routes)
+        self.assertIn("/list", routes)
+
 if __name__ == '__main__':
     unittest.main()
+

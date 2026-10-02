@@ -191,3 +191,4 @@ def list_documents():
     """List all uploaded documents."""
     files = os.listdir(UPLOAD_DIR) if os.path.exists(UPLOAD_DIR) else []
     return {"documents": files, "count": len(files)}
+
