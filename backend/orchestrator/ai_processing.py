@@ -64,3 +64,44 @@ def extract_document_text(file_path: str) -> tuple[str, int, str]:
             # If digital text exists across the document, use it
             if len(digital_pages) > 0 and len("".join(digital_pages).strip()) >= 50:
                 full_text = "\n".join(digital_pages)
+                # If there are a few scanned pages (e.g. attached certificates in first 4 or last 2 pages)
+                critical_scans = [p for p in pages_needing_ocr if p < 4 or p >= page_count - 2][:2]
+                if critical_scans:
+                    ocr = get_ocr_engine()
+                    if ocr:
+                        for p_idx in critical_scans:
+                            try:
+                                page = doc[p_idx]
+                                pix = page.get_pixmap(dpi=150)
+                                img_bytes = pix.tobytes("png")
+                                res, _ = ocr(img_bytes)
+                                if res:
+                                    lines = [r[1] for r in res]
+                                    full_text += f"\n--- Page {p_idx + 1} (Certificate Scan OCR) ---\n" + "\n".join(lines)
+                            except Exception as ocr_err:
+                                print(f"Supplemental OCR notice on page {p_idx+1}: {ocr_err}")
+            else:
+                # Scanned Image PDF: No text layer detected.
+                ocr = get_ocr_engine()
+                ocr_text_parts = []
+                
+                # Initial naive approach: Scan every single page
+                if ocr:
+                    for i in range(page_count):
+                        try:
+                            page = doc[i]
+                            pix = page.get_pixmap(dpi=150)
+                            img_bytes = pix.tobytes("png")
+                            res, _ = ocr(img_bytes)
+                            if res:
+                                lines = [r[1] for r in res]
+                                ocr_text_parts.append(f"\n--- Page {i + 1} (OCR) ---\n" + "\n".join(lines))
+                        except Exception as e:
+                            print(f"OCR error on page {i+1}: {e}")
+                            continue
+
+                full_text = "\n".join(ocr_text_parts) if ocr_text_parts else "--- Scanned PDF [Minimal Text Extracted] ---"
+            
+            doc.close()
+        except Exception as pdf_err:
+            full_text = f"--- PDF Parsing Fallback ({os.path.basename(file_path)}) ---\nError: {pdf_err}\n"
