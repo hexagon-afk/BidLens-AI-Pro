@@ -118,3 +118,85 @@ def extract_document_text(file_path: str) -> tuple[str, int, str]:
             doc.close()
         except Exception as pdf_err:
             full_text = f"--- PDF Parsing Fallback ({os.path.basename(file_path)}) ---\nError: {pdf_err}"
+
+    # 2. Raw Image Files (JPG, PNG, TIFF, BMP, WEBP)
+    elif ext in [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"]:
+        ocr = get_ocr_engine()
+        page_count = 1
+        if ocr:
+            try:
+                # Read and downscale image if excessively large (e.g. 48MP phone photos)
+                img = cv2.imread(file_path)
+                if img is not None:
+                    h, w = img.shape[:2]
+                    max_dim = 1600
+                    if max(h, w) > max_dim:
+                        scale = max_dim / float(max(h, w))
+                        new_w, new_h = int(w * scale), int(h * scale)
+                        img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+                    
+                    res, _ = ocr(img)
+                    if res:
+                        lines = [r[1] for r in res]
+                        full_text = f"--- Scanned Image ({os.path.basename(file_path)}) ---\n" + "\n".join(lines)
+                    else:
+                        full_text = f"--- Scanned Image ({os.path.basename(file_path)}) [No text recognized] ---"
+                else:
+                    full_text = f"--- Scanned Image ({os.path.basename(file_path)}) ---"
+            except Exception as img_err:
+                full_text = f"--- Scanned Image ({os.path.basename(file_path)}) Error: {img_err} ---"
+        else:
+            full_text = f"--- Scanned Image ({os.path.basename(file_path)}) ---"
+
+    # 3. Word Documents (.docx, .doc)
+    elif ext in [".docx", ".doc"]:
+        try:
+            doc = docx.Document(file_path)
+            paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+            table_texts = []
+            for table in doc.tables:
+                for row in table.rows:
+                    row_text = " | ".join([cell.text.strip() for cell in row.cells if cell.text.strip()])
+                    if row_text:
+                        table_texts.append(row_text)
+            full_text = "\n".join(paragraphs) + "\n\n--- Tables ---\n" + "\n".join(table_texts)
+            page_count = max(1, len(full_text) // 1500)
+        except Exception as docx_err:
+            full_text = f"--- Word Document ({os.path.basename(file_path)}) Error: {docx_err} ---"
+
+    # 4. Excel Spreadsheets (.xlsx, .xls)
+    elif ext in [".xlsx", ".xls"]:
+        try:
+            wb = openpyxl.load_workbook(file_path, data_only=True)
+            sheet_texts = []
+            for sheet_name in wb.sheetnames:
+                sheet = wb[sheet_name]
+                sheet_texts.append(f"--- Sheet: {sheet_name} ---")
+                for row in sheet.iter_rows(values_only=True):
+                    row_vals = [str(v).strip() for v in row if v is not None and str(v).strip()]
+                    if row_vals:
+                        sheet_texts.append(" | ".join(row_vals))
+            full_text = "\n".join(sheet_texts)
+            page_count = len(wb.sheetnames)
+        except Exception as xlsx_err:
+            full_text = f"--- Excel Spreadsheet ({os.path.basename(file_path)}) Error: {xlsx_err} ---"
+
+    # 5. CSV Files
+    elif ext == ".csv":
+        try:
+            df = pd.read_csv(file_path)
+            full_text = df.to_string()
+            page_count = 1
+        except Exception as csv_err:
+            full_text = f"--- CSV File ({os.path.basename(file_path)}) Error: {csv_err} ---"
+
+    else:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            full_text = f.read()
+
+    file_label = ext.replace(".", "").upper()
+    if ext in [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"]:
+        file_label = f"IMAGE ({file_label})"
+
+    return full_text, page_count, file_label
+
