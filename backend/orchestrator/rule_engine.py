@@ -53,7 +53,7 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
         })
 
 
-    # 2. GFR Rule 160 & MSME Order 2012 Turnover Exemption 
+    # ── 2. GFR Rule 160 & MSME Order 2012 Turnover Exemption ─
     is_msme = extracted_data.get("is_msme", False)
     turnover_cr = extracted_data.get("turnover_cr")
     min_turnover = tender_requirements["min_turnover_cr"]
@@ -68,8 +68,7 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
             "evidence": f"Registered Micro/Small Enterprise ({udyam}). Statutory exemption granted from prior turnover criteria.",
             "remedy": None
         })
-    else:
-        # Note: Unhandled NoneType error here if turnover_cr is None (will be fixed in Commit 25)
+    elif turnover_cr is not None:
         if turnover_cr >= min_turnover:
             results.append({
                 "clause_id": "GFR-160-TO",
@@ -88,6 +87,16 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
                 "evidence": f"Turnover of INR {turnover_cr:.2f} Cr is below mandatory threshold of INR {min_turnover:.2f} Cr (Non-MSME).",
                 "remedy": "Provide audited financial statements meeting minimum turnover or valid Udyam certificate."
             })
+    else:
+        results.append({
+            "clause_id": "GFR-160-TO",
+            "clause_name": "Annual Financial Turnover Requirement",
+            "status": "FAIL",
+            "regulation_ref": "GFR 2017 Rule 160",
+            "evidence": "No turnover documentation or MSME Udyam registration provided.",
+            "remedy": "Upload last 3 years CA-audited balance sheets with UDIN."
+        })
+
 
     # ── 3. GFR Rule 170 (Earnest Money Deposit - EMD) ─────────
     emd_status = extracted_data.get("emd_status")
