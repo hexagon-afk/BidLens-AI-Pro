@@ -26,5 +26,14 @@ class TestAuditOrchestrator(unittest.TestCase):
             self.assertIn("overall_status", res["compliance_summary"])
             self.assertIsInstance(res["is_compliant"], bool)
 
+    def test_async_parallel_fanout_execution(self):
+        """Verify asyncio.gather executes Rule Engine and Govt Verification concurrently."""
+        sample_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../data/sample_bids/Bid_ApexLabs_MSME.pdf'))
+        if os.path.exists(sample_path):
+            res = asyncio.run(run_full_audit(sample_path))
+            self.assertEqual(res["file_info"]["vendor_name"], "Apex Labs Micro Devices LLP")
+            self.assertGreater(len(res["branch_b_clause_results"]), 0)
+            self.assertIn("overall_govt_verification", res["branch_c_govt_verification"])
+
 if __name__ == '__main__':
     unittest.main()
