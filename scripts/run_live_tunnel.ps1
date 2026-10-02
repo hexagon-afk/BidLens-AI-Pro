@@ -13,7 +13,7 @@ Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$RootDir\back
 Start-Sleep -Seconds 3
 
 Write-Host "Starting Next.js Frontend (Port 3000)..." -ForegroundColor Green
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$RootDir\frontend'; npm start"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$RootDir\frontend'; if (Test-Path '.next') { npm start } else { npm run dev }"
 
 Start-Sleep -Seconds 3
 

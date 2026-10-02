@@ -17,7 +17,7 @@ if exist "%ROOT_DIR%BidLens-AI\backend" (
 )
 
 echo [1/2] Launching FastAPI Backend on http://127.0.0.1:8000 ...
-start "BidLens Backend" cmd /k "cd /d %BACKEND_DIR% && python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000"
+start "BidLens Backend" cmd /k "cd /d %BACKEND_DIR% && (if exist venv\Scripts\activate.bat call venv\Scripts\activate.bat) && python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000"
 timeout /t 3 /nobreak > nul
 
 echo [2/2] Launching Next.js Frontend on http://localhost:3000 ...
