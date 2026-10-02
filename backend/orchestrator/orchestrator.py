@@ -52,11 +52,28 @@ async def run_full_audit(file_path: str, tender_requirements: dict = None) -> di
     # ── 5. Layer 4: Clause-to-Evidence Knowledge Graph ────────
     knowledge_graph = build_compliance_knowledge_graph(extracted, clause_results, govt_verification)
 
-    # ── Summary Metrics ───────────────────────────────────────
+    # ── Summary Metrics & Overall Status Precedence ───────────
     pass_count = sum(1 for c in clause_results if c["status"] == "PASS")
     fail_count = sum(1 for c in clause_results if c["status"] == "FAIL")
     exempt_count = sum(1 for c in clause_results if c["status"] == "EXEMPT")
-    is_compliant = not risk_and_value["rejection_risk"]["rejection_likely"]
+    needs_review_count = sum(1 for c in clause_results if c["status"] == "NEEDS_REVIEW")
+    not_applicable_count = sum(1 for c in clause_results if c["status"] == "NOT_APPLICABLE")
+
+    if fail_count > 0:
+        overall_status = "NON_COMPLIANT"
+    elif needs_review_count > 0:
+        overall_status = "NEEDS_REVIEW"
+    else:
+        overall_status = "COMPLIANT"
+
+    is_compliant = (overall_status == "COMPLIANT")
+    risk_and_value["rejection_risk"]["rejection_likely"] = (overall_status == "NON_COMPLIANT")
+    if overall_status == "NON_COMPLIANT":
+        risk_and_value["rejection_risk"]["risk_tier"] = "HIGH"
+    elif overall_status == "NEEDS_REVIEW":
+        risk_and_value["rejection_risk"]["risk_tier"] = "MEDIUM"
+    else:
+        risk_and_value["rejection_risk"]["risk_tier"] = "LOW"
 
     return {
         "file_info": {
@@ -66,13 +83,16 @@ async def run_full_audit(file_path: str, tender_requirements: dict = None) -> di
             "page_count": extracted["page_count"],
         },
         "is_compliant": is_compliant,
+        "overall_status": overall_status,
         "executive_summary": risk_and_value["executive_summary"],
         "compliance_summary": {
             "total_clauses_checked": len(clause_results),
             "passed": pass_count,
             "failed": fail_count,
             "exempt": exempt_count,
-            "overall_status": "COMPLIANT" if is_compliant else "NON_COMPLIANT",
+            "needs_review": needs_review_count,
+            "not_applicable": not_applicable_count,
+            "overall_status": overall_status,
             "risk_tier": risk_and_value["rejection_risk"]["risk_tier"]
         },
         "branch_a_extracted_data": extracted,
@@ -87,6 +107,3 @@ async def run_full_audit(file_path: str, tender_requirements: dict = None) -> di
         "government_verification": govt_verification,
         "knowledge_graph": knowledge_graph,
     }
-
-
-

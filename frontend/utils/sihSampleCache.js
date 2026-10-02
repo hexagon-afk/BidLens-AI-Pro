@@ -73,14 +73,14 @@ export const SAMPLE_AUDIT_RESULTS = [
     },
     branch_b_clause_results: [
       { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "PASS", regulation_ref: "GFR 2017 Rule 149", evidence: "Active GSTIN 27AABCT3456L1ZV verified.", remedy: null },
-      { clause_id: "GFR-160-MSME", clause_name: "Annual Financial Turnover Requirement", status: "EXEMPT", regulation_ref: "Public Procurement Policy for MSEs Order 2012 / GFR Rule 160", evidence: "Registered Micro/Small Enterprise (UDYAM-MH-03-0098765). Statutory exemption granted from prior turnover criteria.", remedy: null },
+      { clause_id: "GFR-160-MSME", clause_name: "Annual Financial Turnover Requirement", status: "EXEMPT", regulation_ref: "Public Procurement Policy for MSEs Order 2012 / GFR Rule 173 & MSE Policy 2012", evidence: "Registered Micro/Small Enterprise (UDYAM-MH-03-0098765). Statutory exemption granted from prior turnover criteria.", remedy: null },
       { clause_id: "GFR-170-EMD", clause_name: "Earnest Money Deposit (EMD)", status: "EXEMPT", regulation_ref: "GFR 2017 Rule 170(i) / MSME Policy 2012", evidence: "Exempted from EMD submission under Central Government MSME provisions.", remedy: null },
       { clause_id: "MII-2017-LC", clause_name: "Make in India Local Content Preference", status: "PASS", regulation_ref: "Public Procurement (Make in India) Order 2017", evidence: "Local content of 65% qualifies as Class-1 Local Supplier (Threshold >= 50%).", remedy: null },
       { clause_id: "SPEC-WARRANTY", clause_name: "Comprehensive Onsite Warranty", status: "PASS", regulation_ref: "Tender Technical Specifications", evidence: "Offers 5-Year Comprehensive 24x7 Onsite Warranty (Exceeds 3-year baseline preference).", remedy: null }
     ],
     clause_level_decisions: [
       { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "PASS", regulation_ref: "GFR 2017 Rule 149", evidence: "Active GSTIN 27AABCT3456L1ZV verified.", remedy: null },
-      { clause_id: "GFR-160-MSME", clause_name: "Annual Financial Turnover Requirement", status: "EXEMPT", regulation_ref: "Public Procurement Policy for MSEs Order 2012 / GFR Rule 160", evidence: "Registered Micro/Small Enterprise (UDYAM-MH-03-0098765). Statutory exemption granted from prior turnover criteria.", remedy: null },
+      { clause_id: "GFR-160-MSME", clause_name: "Annual Financial Turnover Requirement", status: "EXEMPT", regulation_ref: "Public Procurement Policy for MSEs Order 2012 / GFR Rule 173 & MSE Policy 2012", evidence: "Registered Micro/Small Enterprise (UDYAM-MH-03-0098765). Statutory exemption granted from prior turnover criteria.", remedy: null },
       { clause_id: "GFR-170-EMD", clause_name: "Earnest Money Deposit (EMD)", status: "EXEMPT", regulation_ref: "GFR 2017 Rule 170(i) / MSME Policy 2012", evidence: "Exempted from EMD submission under Central Government MSME provisions.", remedy: null },
       { clause_id: "MII-2017-LC", clause_name: "Make in India Local Content Preference", status: "PASS", regulation_ref: "Public Procurement (Make in India) Order 2017", evidence: "Local content of 65% qualifies as Class-1 Local Supplier (Threshold >= 50%).", remedy: null },
       { clause_id: "SPEC-WARRANTY", clause_name: "Comprehensive Onsite Warranty", status: "PASS", regulation_ref: "Tender Technical Specifications", evidence: "Offers 5-Year Comprehensive 24x7 Onsite Warranty (Exceeds 3-year baseline preference).", remedy: null }
@@ -91,11 +91,11 @@ export const SAMPLE_AUDIT_RESULTS = [
       total_gateways: 6,
       pan_gstin_consistent: true,
       gateways: [
-        { name: "GSTN Common Portal", status: "ACTIVE & FILED (VERIFIED)", badge: "PASS" },
-        { name: "ITD PAN Registry", status: "VALID & OPERATIVE (ITD SYNC)", badge: "PASS" },
-        { name: "MCA21 Corporate Affairs", status: "ACTIVE ENTITY (MCA21)", badge: "PASS" },
+        { name: "GSTN Common Portal", status: "SYNTAX & CHECKSUM VALID (OFFLINE)", badge: "PASS" },
+        { name: "ITD PAN Registry", status: "VALID SYNTAX (OFFLINE)", badge: "PASS" },
+        { name: "MCA21 Corporate Affairs", status: "UNVERIFIED (OFFLINE PROTOTYPE)", badge: "PASS" },
         { name: "Udyam MSME Portal", status: "VERIFIED ACTIVE MSME", badge: "PASS" },
-        { name: "EPFO & ESIC Labour Compliance", status: "COMPLIANT (EPFO/ESIC)", badge: "PASS" },
+        { name: "EPFO & ESIC Labour Compliance", status: "UNVERIFIED (OFFLINE PROTOTYPE)", badge: "PASS" },
         { name: "CPPP Central Debarment Watchlist", status: "CLEAN / NOT BLACKLISTED", badge: "PASS" }
       ]
     },
@@ -105,11 +105,11 @@ export const SAMPLE_AUDIT_RESULTS = [
       total_gateways: 6,
       pan_gstin_consistent: true,
       gateways: [
-        { name: "GSTN Common Portal", status: "ACTIVE & FILED (VERIFIED)", badge: "PASS" },
-        { name: "ITD PAN Registry", status: "VALID & OPERATIVE (ITD SYNC)", badge: "PASS" },
-        { name: "MCA21 Corporate Affairs", status: "ACTIVE ENTITY (MCA21)", badge: "PASS" },
+        { name: "GSTN Common Portal", status: "SYNTAX & CHECKSUM VALID (OFFLINE)", badge: "PASS" },
+        { name: "ITD PAN Registry", status: "VALID SYNTAX (OFFLINE)", badge: "PASS" },
+        { name: "MCA21 Corporate Affairs", status: "UNVERIFIED (OFFLINE PROTOTYPE)", badge: "PASS" },
         { name: "Udyam MSME Portal", status: "VERIFIED ACTIVE MSME", badge: "PASS" },
-        { name: "EPFO & ESIC Labour Compliance", status: "COMPLIANT (EPFO/ESIC)", badge: "PASS" },
+        { name: "EPFO & ESIC Labour Compliance", status: "UNVERIFIED (OFFLINE PROTOTYPE)", badge: "PASS" },
         { name: "CPPP Central Debarment Watchlist", status: "CLEAN / NOT BLACKLISTED", badge: "PASS" }
       ]
     },
@@ -155,14 +155,14 @@ export const SAMPLE_AUDIT_RESULTS = [
     },
     branch_b_clause_results: [
       { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "PASS", regulation_ref: "GFR 2017 Rule 149", evidence: "Active GSTIN 07AAACM9988K1Z5 verified.", remedy: null },
-      { clause_id: "GFR-160-TO", clause_name: "Annual Financial Turnover Requirement", status: "PASS", regulation_ref: "GFR 2017 Rule 160 (Turnover Criteria)", evidence: "Average turnover of INR 45.80 Cr meets minimum threshold of INR 1.50 Cr.", remedy: null },
+      { clause_id: "GFR-160-TO", clause_name: "Annual Financial Turnover Requirement", status: "PASS", regulation_ref: "GFR 2017 Rule 173 & MSE Policy 2012 (Turnover Criteria)", evidence: "Average turnover of INR 45.80 Cr meets minimum threshold of INR 1.50 Cr.", remedy: null },
       { clause_id: "GFR-170-EMD", clause_name: "Earnest Money Deposit (EMD)", status: "PASS", regulation_ref: "GFR 2017 Rule 170", evidence: "Valid EMD Bank Guarantee / FDR submitted as per tender terms.", remedy: null },
       { clause_id: "MII-2017-LC", clause_name: "Make in India Local Content Preference", status: "PASS", regulation_ref: "Public Procurement (Make in India) Order 2017", evidence: "Local content of 58% qualifies as Class-1 Local Supplier (Threshold >= 50%).", remedy: null },
       { clause_id: "SPEC-WARRANTY", clause_name: "Comprehensive Onsite Warranty", status: "PASS", regulation_ref: "Tender Technical Specifications", evidence: "Offers 3-Year Comprehensive Warranty.", remedy: null }
     ],
     clause_level_decisions: [
       { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "PASS", regulation_ref: "GFR 2017 Rule 149", evidence: "Active GSTIN 07AAACM9988K1Z5 verified.", remedy: null },
-      { clause_id: "GFR-160-TO", clause_name: "Annual Financial Turnover Requirement", status: "PASS", regulation_ref: "GFR 2017 Rule 160 (Turnover Criteria)", evidence: "Average turnover of INR 45.80 Cr meets minimum threshold of INR 1.50 Cr.", remedy: null },
+      { clause_id: "GFR-160-TO", clause_name: "Annual Financial Turnover Requirement", status: "PASS", regulation_ref: "GFR 2017 Rule 173 & MSE Policy 2012 (Turnover Criteria)", evidence: "Average turnover of INR 45.80 Cr meets minimum threshold of INR 1.50 Cr.", remedy: null },
       { clause_id: "GFR-170-EMD", clause_name: "Earnest Money Deposit (EMD)", status: "PASS", regulation_ref: "GFR 2017 Rule 170", evidence: "Valid EMD Bank Guarantee / FDR submitted as per tender terms.", remedy: null },
       { clause_id: "MII-2017-LC", clause_name: "Make in India Local Content Preference", status: "PASS", regulation_ref: "Public Procurement (Make in India) Order 2017", evidence: "Local content of 58% qualifies as Class-1 Local Supplier (Threshold >= 50%).", remedy: null },
       { clause_id: "SPEC-WARRANTY", clause_name: "Comprehensive Onsite Warranty", status: "PASS", regulation_ref: "Tender Technical Specifications", evidence: "Offers 3-Year Comprehensive Warranty.", remedy: null }
@@ -173,11 +173,11 @@ export const SAMPLE_AUDIT_RESULTS = [
       total_gateways: 5,
       pan_gstin_consistent: true,
       gateways: [
-        { name: "GSTN Common Portal", status: "ACTIVE & FILED (VERIFIED)", badge: "PASS" },
-        { name: "ITD PAN Registry", status: "VALID & OPERATIVE (ITD SYNC)", badge: "PASS" },
-        { name: "MCA21 Corporate Affairs", status: "ACTIVE ENTITY (MCA21)", badge: "PASS" },
+        { name: "GSTN Common Portal", status: "SYNTAX & CHECKSUM VALID (OFFLINE)", badge: "PASS" },
+        { name: "ITD PAN Registry", status: "VALID SYNTAX (OFFLINE)", badge: "PASS" },
+        { name: "MCA21 Corporate Affairs", status: "UNVERIFIED (OFFLINE PROTOTYPE)", badge: "PASS" },
         { name: "Udyam MSME Portal", status: "NOT_APPLICABLE", badge: "NEUTRAL" },
-        { name: "EPFO & ESIC Labour Compliance", status: "COMPLIANT (EPFO/ESIC)", badge: "PASS" },
+        { name: "EPFO & ESIC Labour Compliance", status: "UNVERIFIED (OFFLINE PROTOTYPE)", badge: "PASS" },
         { name: "CPPP Central Debarment Watchlist", status: "CLEAN / NOT BLACKLISTED", badge: "PASS" }
       ]
     },
@@ -187,11 +187,11 @@ export const SAMPLE_AUDIT_RESULTS = [
       total_gateways: 5,
       pan_gstin_consistent: true,
       gateways: [
-        { name: "GSTN Common Portal", status: "ACTIVE & FILED (VERIFIED)", badge: "PASS" },
-        { name: "ITD PAN Registry", status: "VALID & OPERATIVE (ITD SYNC)", badge: "PASS" },
-        { name: "MCA21 Corporate Affairs", status: "ACTIVE ENTITY (MCA21)", badge: "PASS" },
+        { name: "GSTN Common Portal", status: "SYNTAX & CHECKSUM VALID (OFFLINE)", badge: "PASS" },
+        { name: "ITD PAN Registry", status: "VALID SYNTAX (OFFLINE)", badge: "PASS" },
+        { name: "MCA21 Corporate Affairs", status: "UNVERIFIED (OFFLINE PROTOTYPE)", badge: "PASS" },
         { name: "Udyam MSME Portal", status: "NOT_APPLICABLE", badge: "NEUTRAL" },
-        { name: "EPFO & ESIC Labour Compliance", status: "COMPLIANT (EPFO/ESIC)", badge: "PASS" },
+        { name: "EPFO & ESIC Labour Compliance", status: "UNVERIFIED (OFFLINE PROTOTYPE)", badge: "PASS" },
         { name: "CPPP Central Debarment Watchlist", status: "CLEAN / NOT BLACKLISTED", badge: "PASS" }
       ]
     },
@@ -237,14 +237,14 @@ export const SAMPLE_AUDIT_RESULTS = [
     },
     branch_b_clause_results: [
       { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "FAIL", regulation_ref: "GFR 2017 Rule 149 / Statutory Tax Compliance", evidence: "GSTIN 06AAACG1122J1Z8 is flagged as EXPIRED or CANCELLED.", remedy: "Provide active GSTIN reactivation certificate from GST portal." },
-      { clause_id: "GFR-160-MSME", clause_name: "Annual Financial Turnover Requirement", status: "EXEMPT", regulation_ref: "Public Procurement Policy for MSEs Order 2012 / GFR Rule 160", evidence: "Exemption claimed under MSE provisions.", remedy: null },
+      { clause_id: "GFR-160-MSME", clause_name: "Annual Financial Turnover Requirement", status: "EXEMPT", regulation_ref: "Public Procurement Policy for MSEs Order 2012 / GFR Rule 173 & MSE Policy 2012", evidence: "Exemption claimed under MSE provisions.", remedy: null },
       { clause_id: "GFR-170-EMD", clause_name: "Earnest Money Deposit (EMD)", status: "EXEMPT", regulation_ref: "GFR 2017 Rule 170(i) / MSME Policy 2012", evidence: "Exemption claimed under MSE provisions.", remedy: null },
       { clause_id: "MII-2017-LC", clause_name: "Make in India Local Content Preference", status: "FAIL", regulation_ref: "Public Procurement (Make in India) Order 2017", evidence: "Local content of 0% fails Class-1 Local Supplier requirement (Minimum 50%).", remedy: "Provide OEM certificate verifying >= 50% domestic value addition." },
       { clause_id: "SPEC-WARRANTY", clause_name: "Comprehensive Onsite Warranty", status: "FAIL", regulation_ref: "Tender Technical Specifications", evidence: "Offers sub-standard warranty (6-Month Carry-in). Minimum 3-Year comprehensive warranty required.", remedy: "Provide OEM commitment letter for 3-Year onsite warranty coverage." }
     ],
     clause_level_decisions: [
       { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "FAIL", regulation_ref: "GFR 2017 Rule 149 / Statutory Tax Compliance", evidence: "GSTIN 06AAACG1122J1Z8 is flagged as EXPIRED or CANCELLED.", remedy: "Provide active GSTIN reactivation certificate from GST portal." },
-      { clause_id: "GFR-160-MSME", clause_name: "Annual Financial Turnover Requirement", status: "EXEMPT", regulation_ref: "Public Procurement Policy for MSEs Order 2012 / GFR Rule 160", evidence: "Exemption claimed under MSE provisions.", remedy: null },
+      { clause_id: "GFR-160-MSME", clause_name: "Annual Financial Turnover Requirement", status: "EXEMPT", regulation_ref: "Public Procurement Policy for MSEs Order 2012 / GFR Rule 173 & MSE Policy 2012", evidence: "Exemption claimed under MSE provisions.", remedy: null },
       { clause_id: "GFR-170-EMD", clause_name: "Earnest Money Deposit (EMD)", status: "EXEMPT", regulation_ref: "GFR 2017 Rule 170(i) / MSME Policy 2012", evidence: "Exemption claimed under MSE provisions.", remedy: null },
       { clause_id: "MII-2017-LC", clause_name: "Make in India Local Content Preference", status: "FAIL", regulation_ref: "Public Procurement (Make in India) Order 2017", evidence: "Local content of 0% fails Class-1 Local Supplier requirement (Minimum 50%).", remedy: "Provide OEM certificate verifying >= 50% domestic value addition." },
       { clause_id: "SPEC-WARRANTY", clause_name: "Comprehensive Onsite Warranty", status: "FAIL", regulation_ref: "Tender Technical Specifications", evidence: "Offers sub-standard warranty (6-Month Carry-in). Minimum 3-Year comprehensive warranty required.", remedy: "Provide OEM commitment letter for 3-Year onsite warranty coverage." }
@@ -256,10 +256,10 @@ export const SAMPLE_AUDIT_RESULTS = [
       pan_gstin_consistent: true,
       gateways: [
         { name: "GSTN Common Portal", status: "CANCELLED / SUSPENDED", badge: "FAIL" },
-        { name: "ITD PAN Registry", status: "VALID & OPERATIVE (ITD SYNC)", badge: "PASS" },
-        { name: "MCA21 Corporate Affairs", status: "ACTIVE ENTITY (MCA21)", badge: "PASS" },
+        { name: "ITD PAN Registry", status: "VALID SYNTAX (OFFLINE)", badge: "PASS" },
+        { name: "MCA21 Corporate Affairs", status: "UNVERIFIED (OFFLINE PROTOTYPE)", badge: "PASS" },
         { name: "Udyam MSME Portal", status: "NOT_APPLICABLE", badge: "NEUTRAL" },
-        { name: "EPFO & ESIC Labour Compliance", status: "COMPLIANT (EPFO/ESIC)", badge: "PASS" },
+        { name: "EPFO & ESIC Labour Compliance", status: "UNVERIFIED (OFFLINE PROTOTYPE)", badge: "PASS" },
         { name: "CPPP Central Debarment Watchlist", status: "UNDER INVESTIGATION / WATCHLIST", badge: "FAIL" }
       ]
     },
@@ -270,10 +270,10 @@ export const SAMPLE_AUDIT_RESULTS = [
       pan_gstin_consistent: true,
       gateways: [
         { name: "GSTN Common Portal", status: "CANCELLED / SUSPENDED", badge: "FAIL" },
-        { name: "ITD PAN Registry", status: "VALID & OPERATIVE (ITD SYNC)", badge: "PASS" },
-        { name: "MCA21 Corporate Affairs", status: "ACTIVE ENTITY (MCA21)", badge: "PASS" },
+        { name: "ITD PAN Registry", status: "VALID SYNTAX (OFFLINE)", badge: "PASS" },
+        { name: "MCA21 Corporate Affairs", status: "UNVERIFIED (OFFLINE PROTOTYPE)", badge: "PASS" },
         { name: "Udyam MSME Portal", status: "NOT_APPLICABLE", badge: "NEUTRAL" },
-        { name: "EPFO & ESIC Labour Compliance", status: "COMPLIANT (EPFO/ESIC)", badge: "PASS" },
+        { name: "EPFO & ESIC Labour Compliance", status: "UNVERIFIED (OFFLINE PROTOTYPE)", badge: "PASS" },
         { name: "CPPP Central Debarment Watchlist", status: "UNDER INVESTIGATION / WATCHLIST", badge: "FAIL" }
       ]
     },
@@ -322,14 +322,14 @@ export const SAMPLE_RECTIFIED_RESULT = {
   },
   branch_b_clause_results: [
     { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "PASS", regulation_ref: "GFR 2017 Rule 149", evidence: "Active GSTIN 06AAACG1122J1Z8 verified with state reactivation certificate.", remedy: null },
-    { clause_id: "GFR-160-TO", clause_name: "Annual Financial Turnover Requirement", status: "PASS", regulation_ref: "GFR 2017 Rule 160 (Turnover Criteria)", evidence: "Audited turnover of INR 2.10 Cr meets minimum threshold of INR 1.50 Cr.", remedy: null },
+    { clause_id: "GFR-160-TO", clause_name: "Annual Financial Turnover Requirement", status: "PASS", regulation_ref: "GFR 2017 Rule 173 & MSE Policy 2012 (Turnover Criteria)", evidence: "Audited turnover of INR 2.10 Cr meets minimum threshold of INR 1.50 Cr.", remedy: null },
     { clause_id: "GFR-170-EMD", clause_name: "Earnest Money Deposit (EMD)", status: "PASS", regulation_ref: "GFR 2017 Rule 170", evidence: "PNB Bank Guarantee for INR 1,00,000 submitted.", remedy: null },
     { clause_id: "MII-2017-LC", clause_name: "Make in India Local Content Preference", status: "PASS", regulation_ref: "Public Procurement (Make in India) Order 2017", evidence: "Local content of 52% qualifies as Class-1 Local Supplier.", remedy: null },
     { clause_id: "SPEC-WARRANTY", clause_name: "Comprehensive Onsite Warranty", status: "PASS", regulation_ref: "Tender Technical Specifications", evidence: "Offers 3-Year Comprehensive Onsite OEM Warranty.", remedy: null }
   ],
   clause_level_decisions: [
     { clause_id: "GFR-149-GST", clause_name: "GSTIN Registration & Validity", status: "PASS", regulation_ref: "GFR 2017 Rule 149", evidence: "Active GSTIN 06AAACG1122J1Z8 verified with state reactivation certificate.", remedy: null },
-    { clause_id: "GFR-160-TO", clause_name: "Annual Financial Turnover Requirement", status: "PASS", regulation_ref: "GFR 2017 Rule 160 (Turnover Criteria)", evidence: "Audited turnover of INR 2.10 Cr meets minimum threshold of INR 1.50 Cr.", remedy: null },
+    { clause_id: "GFR-160-TO", clause_name: "Annual Financial Turnover Requirement", status: "PASS", regulation_ref: "GFR 2017 Rule 173 & MSE Policy 2012 (Turnover Criteria)", evidence: "Audited turnover of INR 2.10 Cr meets minimum threshold of INR 1.50 Cr.", remedy: null },
     { clause_id: "GFR-170-EMD", clause_name: "Earnest Money Deposit (EMD)", status: "PASS", regulation_ref: "GFR 2017 Rule 170", evidence: "PNB Bank Guarantee for INR 1,00,000 submitted.", remedy: null },
     { clause_id: "MII-2017-LC", clause_name: "Make in India Local Content Preference", status: "PASS", regulation_ref: "Public Procurement (Make in India) Order 2017", evidence: "Local content of 52% qualifies as Class-1 Local Supplier.", remedy: null },
     { clause_id: "SPEC-WARRANTY", clause_name: "Comprehensive Onsite Warranty", status: "PASS", regulation_ref: "Tender Technical Specifications", evidence: "Offers 3-Year Comprehensive Onsite OEM Warranty.", remedy: null }
@@ -340,11 +340,11 @@ export const SAMPLE_RECTIFIED_RESULT = {
     total_gateways: 5,
     pan_gstin_consistent: true,
     gateways: [
-      { name: "GSTN Common Portal", status: "ACTIVE & FILED (VERIFIED)", badge: "PASS" },
-      { name: "ITD PAN Registry", status: "VALID & OPERATIVE (ITD SYNC)", badge: "PASS" },
-      { name: "MCA21 Corporate Affairs", status: "ACTIVE ENTITY (MCA21)", badge: "PASS" },
+      { name: "GSTN Common Portal", status: "SYNTAX & CHECKSUM VALID (OFFLINE)", badge: "PASS" },
+      { name: "ITD PAN Registry", status: "VALID SYNTAX (OFFLINE)", badge: "PASS" },
+      { name: "MCA21 Corporate Affairs", status: "UNVERIFIED (OFFLINE PROTOTYPE)", badge: "PASS" },
       { name: "Udyam MSME Portal", status: "NOT_APPLICABLE", badge: "NEUTRAL" },
-      { name: "EPFO & ESIC Labour Compliance", status: "COMPLIANT (EPFO/ESIC)", badge: "PASS" },
+      { name: "EPFO & ESIC Labour Compliance", status: "UNVERIFIED (OFFLINE PROTOTYPE)", badge: "PASS" },
       { name: "CPPP Central Debarment Watchlist", status: "CLEAN / NOT BLACKLISTED", badge: "PASS" }
     ]
   },
@@ -354,11 +354,11 @@ export const SAMPLE_RECTIFIED_RESULT = {
     total_gateways: 5,
     pan_gstin_consistent: true,
     gateways: [
-      { name: "GSTN Common Portal", status: "ACTIVE & FILED (VERIFIED)", badge: "PASS" },
-      { name: "ITD PAN Registry", status: "VALID & OPERATIVE (ITD SYNC)", badge: "PASS" },
-      { name: "MCA21 Corporate Affairs", status: "ACTIVE ENTITY (MCA21)", badge: "PASS" },
+      { name: "GSTN Common Portal", status: "SYNTAX & CHECKSUM VALID (OFFLINE)", badge: "PASS" },
+      { name: "ITD PAN Registry", status: "VALID SYNTAX (OFFLINE)", badge: "PASS" },
+      { name: "MCA21 Corporate Affairs", status: "UNVERIFIED (OFFLINE PROTOTYPE)", badge: "PASS" },
       { name: "Udyam MSME Portal", status: "NOT_APPLICABLE", badge: "NEUTRAL" },
-      { name: "EPFO & ESIC Labour Compliance", status: "COMPLIANT (EPFO/ESIC)", badge: "PASS" },
+      { name: "EPFO & ESIC Labour Compliance", status: "UNVERIFIED (OFFLINE PROTOTYPE)", badge: "PASS" },
       { name: "CPPP Central Debarment Watchlist", status: "CLEAN / NOT BLACKLISTED", badge: "PASS" }
     ]
   },

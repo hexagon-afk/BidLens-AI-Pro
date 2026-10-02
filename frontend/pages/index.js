@@ -295,7 +295,16 @@ export default function Home() {
           const auditRes = await fetch(`${getBackendUrl()}/audit/run`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ file_id: vendor.file_id, tender_id: tData.tender_data.tender_id }),
+            body: JSON.stringify({
+              file_id: vendor.file_id,
+              tender_id: tData.tender_data.tender_id,
+              tender_requirements: {
+                min_turnover_cr: tData.tender_data.min_turnover_cr,
+                emd_required_inr: tData.tender_data.emd_inr,
+                min_local_content_pct: tData.tender_data.min_local_content_pct,
+                min_warranty_years: tData.tender_data.min_warranty_years || 3,
+              }
+            }),
             signal: controller.signal
           });
           if (auditRes.ok) {
@@ -334,7 +343,7 @@ export default function Home() {
       setSelectedEvidenceClause(SAMPLE_AUDIT_RESULTS[0].clause_level_decisions ? SAMPLE_AUDIT_RESULTS[0].clause_level_decisions[0] : null);
       const compliantOnes = SAMPLE_AUDIT_RESULTS.filter((b) => b?.is_compliant);
       setShortlistedVendors(compliantOnes);
-      setStatusMessage('Sovereign 1-Click Audit Complete! Evaluated 3 vendors against GFR 2017.');
+      setStatusMessage('Demo Mode: Network offline, displaying precomputed sample proposal data.');
       setTimeout(() => setStatusMessage(''), 3500);
       setCurrentScreen('evaluations');
     } finally {
@@ -364,7 +373,16 @@ export default function Home() {
       const auditRes = await fetch(`${getBackendUrl()}/audit/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ file_id: data.file_id, tender_id: tenderDocument?.tender_id || 'GEM/2026/B/892100' }),
+        body: JSON.stringify({
+          file_id: data.file_id,
+          tender_id: tenderDocument?.tender_id || 'GEM/2026/B/892100',
+          tender_requirements: tenderDocument ? {
+            min_turnover_cr: tenderDocument.min_turnover_cr,
+            emd_required_inr: tenderDocument.emd_inr,
+            min_local_content_pct: tenderDocument.min_local_content_pct,
+            min_warranty_years: tenderDocument.min_warranty_years || 3,
+          } : null
+        }),
         signal: controller.signal
       });
       clearTimeout(timeoutId);
@@ -485,7 +503,16 @@ export default function Home() {
         const auditRes = await fetch(`${getBackendUrl()}/audit/run`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ file_id: vendor.file_id, tender_id: tenderDocument.tender_id }),
+          body: JSON.stringify({
+          file_id: vendor.file_id,
+          tender_id: tenderDocument.tender_id,
+          tender_requirements: {
+            min_turnover_cr: tenderDocument.min_turnover_cr,
+            emd_required_inr: tenderDocument.emd_inr,
+            min_local_content_pct: tenderDocument.min_local_content_pct,
+            min_warranty_years: tenderDocument.min_warranty_years || 3,
+          }
+        }),
         });
 
         if (auditRes.ok) {
@@ -605,7 +632,16 @@ export default function Home() {
       const auditRes = await fetch(`${getBackendUrl()}/audit/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ file_id: v.file_id, tender_id: tenderDocument?.tender_id || 'GEM/2026/B/892100' }),
+        body: JSON.stringify({
+        file_id: v.file_id,
+        tender_id: tenderDocument?.tender_id || 'GEM/2026/B/892100',
+        tender_requirements: tenderDocument ? {
+          min_turnover_cr: tenderDocument.min_turnover_cr,
+          emd_required_inr: tenderDocument.emd_inr,
+          min_local_content_pct: tenderDocument.min_local_content_pct,
+          min_warranty_years: tenderDocument.min_warranty_years || 3,
+        } : null
+      }),
       });
       if (auditRes.ok) {
         const auditData = await auditRes.json();
@@ -661,7 +697,16 @@ export default function Home() {
       const auditRes = await fetch(`${getBackendUrl()}/audit/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ file_id: fileId, tender_id: tenderDocument?.tender_id || 'GEM/2026/B/892100' }),
+        body: JSON.stringify({
+        file_id: fileId,
+        tender_id: tenderDocument?.tender_id || 'GEM/2026/B/892100',
+        tender_requirements: tenderDocument ? {
+          min_turnover_cr: tenderDocument.min_turnover_cr,
+          emd_required_inr: tenderDocument.emd_inr,
+          min_local_content_pct: tenderDocument.min_local_content_pct,
+          min_warranty_years: tenderDocument.min_warranty_years || 3,
+        } : null
+      }),
       });
 
       if (!auditRes.ok) throw new Error('Audit on rectification file failed');
@@ -946,7 +991,12 @@ export default function Home() {
       </aside>
 
       {/* ── 2. MAIN APPLICATION CONTENT ─────────────────────────── */}
-      <main className="main-content">
+            <main className="main-content">
+        {/* Prototype Transparency Banner */}
+        <div style={{ backgroundColor: '#FEF3C7', borderBottom: '1px solid #F59E0B', padding: '7px 20px', fontSize: '11.5px', color: '#92400E', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 10 }}>
+          <span><strong>PROTOTYPE DEMONSTRATION MODE:</strong> Deterministic evaluation against active tender criteria. External government registry checks are running in offline syntax/checksum verification mode.</span>
+          <span style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.5px', backgroundColor: '#FDE68A', padding: '2px 8px', borderRadius: '4px', color: '#78350F' }}>Sandbox Demo</span>
+        </div>
         {/* Top Header Active Search Bar with Live Dropdown */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', gap: '16px' }}>
           <div ref={searchContainerRef} style={{ position: 'relative', flex: 1, maxWidth: '520px' }}>
@@ -1605,27 +1655,27 @@ export default function Home() {
                                   className="badge badge-exempt"
                                   style={{ cursor: 'pointer', border: 'none' }}
                                   onClick={() => setEvidenceModalData({
-                                    title: 'Turnover Criteria (GFR Rule 160)',
+                                    title: 'Turnover Criteria & MSME Exemption',
                                     vendor: bid?.file_info?.vendor_name,
                                     status: 'EXEMPT',
-                                    rule: 'Public Procurement Policy for MSEs Order 2012 / GFR Rule 160',
-                                    text: `Udyam Certificate ${extracted.udyam || 'UDYAM-MH-03-0098765'} verified. Micro & Small Enterprise granted statutory waiver from prior turnover criteria.`,
-                                    citation: 'Cover Letter Page 1 & Udyam Annexure'
+                                    rule: 'Public Procurement Policy for MSEs Order 2012 / DoE OM F.20/2/2014-PPD',
+                                    text: extracted.udyam ? `Udyam Certificate ${extracted.udyam} verified. Micro & Small Enterprise granted statutory waiver from prior turnover criteria.` : 'MSME claimed in proposal text without verified Udyam registration number.',
+                                    citation: extracted.udyam ? `Submission: ${extracted.filename || 'Proposal Document'} (Udyam Verified)` : 'Proposal Self-Declaration'
                                   })}
                                 >
                                   EXEMPT (MSME)
                                 </button>
-                              ) : (extracted.turnover_cr || 0) >= 1.5 ? (
+                              ) : (extracted.turnover_cr || 0) >= (tenderDocument?.min_turnover_cr || 1.5) ? (
                                 <button
                                   className="badge badge-pass"
                                   style={{ cursor: 'pointer', border: 'none' }}
                                   onClick={() => setEvidenceModalData({
-                                    title: 'Turnover Criteria (GFR Rule 160)',
+                                    title: 'Turnover Criteria (GFR 2017 Rule 173)',
                                     vendor: bid?.file_info?.vendor_name,
                                     status: 'PASS',
-                                    rule: 'GFR 2017 Rule 160',
-                                    text: `Audited balance sheets confirm 3-year average turnover of INR ${extracted.turnover_cr} Cr, exceeding the minimum threshold of INR 1.50 Cr.`,
-                                    citation: 'Financial Statement Annexure Page 4'
+                                    rule: 'GFR 2017 Rule 173',
+                                    text: `Declared turnover of INR ${extracted.turnover_cr} Cr meets or exceeds the required threshold of INR ${tenderDocument?.min_turnover_cr || 1.50} Cr.`,
+                                    citation: `Submission: ${extracted.filename || 'Proposal Document'}`
                                   })}
                                 >
                                   PASS ({extracted.turnover_cr} Cr)
@@ -1635,12 +1685,12 @@ export default function Home() {
                                   className="badge badge-fail"
                                   style={{ cursor: 'pointer', border: 'none' }}
                                   onClick={() => setEvidenceModalData({
-                                    title: 'Turnover Criteria (GFR Rule 160)',
+                                    title: 'Turnover Criteria (GFR 2017 Rule 173)',
                                     vendor: bid?.file_info?.vendor_name,
                                     status: 'FAIL',
-                                    rule: 'GFR 2017 Rule 160',
-                                    text: `Turnover of INR ${extracted.turnover_cr || 0.45} Cr is below mandatory threshold of INR 1.50 Cr and no valid Udyam registration is provided.`,
-                                    citation: 'Financial Declaration Page 3'
+                                    rule: 'GFR 2017 Rule 173',
+                                    text: `Turnover of INR ${extracted.turnover_cr || 0.45} Cr is below mandatory requirement of INR ${tenderDocument?.min_turnover_cr || 1.50} Cr and vendor is not an exempt MSE.`,
+                                    citation: `Submission: ${extracted.filename || 'Proposal Document'}`
                                   })}
                                 >
                                   FAIL (Low Turnover)
@@ -1656,9 +1706,9 @@ export default function Home() {
                                     title: 'Earnest Money Deposit (EMD)',
                                     vendor: bid?.file_info?.vendor_name,
                                     status: 'EXEMPT',
-                                    rule: 'GFR 2017 Rule 170(i) / MSME Policy 2012',
-                                    text: 'Exempted from INR 1,00,000 EMD submission under central MSME procurement provisions.',
-                                    citation: 'Section 4 - Statutory Exemptions Declaration'
+                                    rule: 'Public Procurement Policy for MSEs Order 2012, Para 10 / GFR Rule 170(i)',
+                                    text: 'Exempted from EMD submission under Central Government MSME procurement provisions.',
+                                    citation: `Submission: ${extracted.filename || 'Proposal Document'} (MSME Exemption)`
                                   })}
                                 >
                                   EXEMPT
@@ -1671,9 +1721,9 @@ export default function Home() {
                                     title: 'Earnest Money Deposit (EMD)',
                                     vendor: bid?.file_info?.vendor_name,
                                     status: 'PASS',
-                                    rule: 'GFR 2017 Rule 170',
-                                    text: 'Valid Bank Guarantee for INR 1,00,000 submitted from scheduled commercial bank.',
-                                    citation: 'EMD Guarantee Annexure Page 2'
+                                    rule: 'Tender Bid Security Clause / GFR 2017 Rule 170',
+                                    text: `Valid EMD instrument submitted as per tender terms (Requirement: INR ${(tenderDocument?.emd_inr || 100000).toLocaleString('en-IN')}).`,
+                                    citation: `Submission: ${extracted.filename || 'Proposal Document'}`
                                   })}
                                 >
                                   SUBMITTED
@@ -1686,9 +1736,9 @@ export default function Home() {
                                     title: 'Earnest Money Deposit (EMD)',
                                     vendor: bid?.file_info?.vendor_name,
                                     status: 'FAIL',
-                                    rule: 'GFR 2017 Rule 170',
-                                    text: 'No EMD Bank Guarantee or FDR document attached, and vendor is not eligible for MSME waiver.',
-                                    citation: 'Submission Checklist - Missing Item'
+                                    rule: 'Tender Bid Security Clause / GFR 2017 Rule 170',
+                                    text: `No EMD Bank Guarantee or FDR document attached, and vendor is not eligible for MSME waiver (Requirement: INR ${(tenderDocument?.emd_inr || 100000).toLocaleString('en-IN')}).`,
+                                    citation: `Submission: ${extracted.filename || 'Proposal Document'} (Missing Instrument)`
                                   })}
                                 >
                                   MISSING
@@ -1849,7 +1899,7 @@ export default function Home() {
                     Government Gateway Cross-Verification Handshake (5 Core Registries)
                   </h3>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                    Live synchronization against GSTN, ITD PAN, MCA21, Udyam MSME, EPFO/ESIC, and Central Debarment Watchlist
+                    Offline syntax, structure, and Modulus-36 checksum validation (Live registries unverified in prototype)
                   </div>
                 </div>
                 <span className={`badge ${selectedVendor?.government_verification?.overall_govt_verification === 'PASS' ? 'badge-pass' : 'badge-fail'}`}>

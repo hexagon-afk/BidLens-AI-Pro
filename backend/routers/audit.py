@@ -28,11 +28,13 @@ os.makedirs(REPORTS_DIR, exist_ok=True)
 
 AUDIT_CACHE: Dict[str, Any] = {}
 AUDIT_OVERRIDES: Dict[str, Dict[str, Any]] = {}  # bid_id -> { clause_id -> { status, justification, original_status, clause_name, timestamp } }
+ACTIVE_TENDER_CRITERIA: Dict[str, Any] = {}  # tender_id -> criteria
 
 
 class RunAuditPayload(BaseModel):
     file_id: str
     tender_id: Optional[str] = "GEM/2026/B/892100"
+    tender_requirements: Optional[Dict[str, Any]] = None
 
 
 class ClauseOverridePayload(BaseModel):
@@ -40,7 +42,7 @@ class ClauseOverridePayload(BaseModel):
     clause_id: str
     clause_name: str
     original_status: str
-    new_status: str  # "PASS", "FAIL", "EXEMPT"
+    new_status: str  # "PASS", "FAIL", "EXEMPT", "NEEDS_REVIEW", "NOT_APPLICABLE"
     justification: str
     officer_name: Optional[str] = "Procurement Officer"
 
@@ -48,7 +50,8 @@ class ClauseOverridePayload(BaseModel):
 @router.post("/run")
 async def trigger_audit(payload: RunAuditPayload):
     """
-    Triggers full compliance audit on an uploaded document file_id or sample filename.
+    Triggers compliance audit on an uploaded document file_id or sample filename,
+    strictly evaluated against the active tender requirements.
     """
     file_id = payload.file_id
     target_file = None
@@ -77,7 +80,12 @@ async def trigger_audit(payload: RunAuditPayload):
     if audit_id in AUDIT_OVERRIDES and payload.tender_id != "KEEP_OVERRIDES":
         AUDIT_OVERRIDES.pop(audit_id, None)
 
-    audit_results = await run_full_audit(target_file)
+    # Determine effective tender requirements
+    tender_reqs = payload.tender_requirements
+    if not tender_reqs and payload.tender_id and payload.tender_id in ACTIVE_TENDER_CRITERIA:
+        tender_reqs = ACTIVE_TENDER_CRITERIA[payload.tender_id]
+
+    audit_results = await run_full_audit(target_file, tender_requirements=tender_reqs)
     AUDIT_CACHE[audit_id] = audit_results
 
     clean_id = audit_id.replace('.pdf','').replace('.docx','').replace('.xlsx','')
@@ -91,7 +99,9 @@ async def trigger_audit(payload: RunAuditPayload):
     return {
         "audit_id": audit_id,
         "status": "COMPLETED",
-        "message": "Audit completed across all verification branches.",
+        "overall_status": audit_results.get("overall_status", "NEEDS_REVIEW"),
+        "is_compliant": audit_results.get("is_compliant", False),
+        "message": f"Audit completed with overall verdict: {audit_results.get('overall_status')}",
         "pdf_download_url": f"/audit/report/pdf/{audit_id}",
         "results": audit_results
     }
@@ -119,7 +129,8 @@ def reset_vendor_overrides(bid_id: str):
 @router.post("/clause-override")
 def record_clause_override(payload: ClauseOverridePayload):
     """
-    Records a supervisory officer clause verdict override with mandatory justification.
+    Records a supervisory officer clause verdict override with mandatory justification,
+    and dynamically recalculates summary metrics, overall compliance status, and risk tier.
     """
     if not payload.justification or len(payload.justification.strip()) < 5:
         raise HTTPException(
@@ -143,7 +154,7 @@ def record_clause_override(payload: ClauseOverridePayload):
         "timestamp": timestamp_str
     }
 
-    # Update in cached audit if present
+    # Recalculate summary metrics if audit is cached
     if bid_id in AUDIT_CACHE:
         clauses = AUDIT_CACHE[bid_id].get("clause_level_decisions", [])
         for c in clauses:
@@ -151,12 +162,53 @@ def record_clause_override(payload: ClauseOverridePayload):
                 c["status"] = payload.new_status
                 c["officer_override_note"] = payload.justification.strip()
 
+        pass_count = sum(1 for c in clauses if c.get("status") == "PASS")
+        fail_count = sum(1 for c in clauses if c.get("status") == "FAIL")
+        exempt_count = sum(1 for c in clauses if c.get("status") == "EXEMPT")
+        needs_review_count = sum(1 for c in clauses if c.get("status") == "NEEDS_REVIEW")
+        not_applicable_count = sum(1 for c in clauses if c.get("status") == "NOT_APPLICABLE")
+
+        if fail_count > 0:
+            overall_status = "NON_COMPLIANT"
+        elif needs_review_count > 0:
+            overall_status = "NEEDS_REVIEW"
+        else:
+            overall_status = "COMPLIANT"
+
+        is_compliant = (overall_status == "COMPLIANT")
+        AUDIT_CACHE[bid_id]["is_compliant"] = is_compliant
+        AUDIT_CACHE[bid_id]["overall_status"] = overall_status
+
+        if "compliance_summary" in AUDIT_CACHE[bid_id]:
+            cs = AUDIT_CACHE[bid_id]["compliance_summary"]
+            cs["passed"] = pass_count
+            cs["failed"] = fail_count
+            cs["exempt"] = exempt_count
+            cs["needs_review"] = needs_review_count
+            cs["not_applicable"] = not_applicable_count
+            cs["overall_status"] = overall_status
+            cs["risk_tier"] = "HIGH" if overall_status == "NON_COMPLIANT" else ("MEDIUM" if overall_status == "NEEDS_REVIEW" else "LOW")
+
+        if "rejection_risk_analysis" in AUDIT_CACHE[bid_id]:
+            AUDIT_CACHE[bid_id]["rejection_risk_analysis"]["rejection_likely"] = (overall_status == "NON_COMPLIANT")
+            AUDIT_CACHE[bid_id]["rejection_risk_analysis"]["risk_tier"] = "HIGH" if overall_status == "NON_COMPLIANT" else ("MEDIUM" if overall_status == "NEEDS_REVIEW" else "LOW")
+
+        clean_id = bid_id.replace('.pdf','').replace('.docx','').replace('.xlsx','')
+        pdf_report_path = os.path.join(REPORTS_DIR, f"Audit_Report_{clean_id}.pdf")
+        generate_certified_audit_pdf(
+            AUDIT_CACHE[bid_id],
+            pdf_report_path,
+            officer_overrides=AUDIT_OVERRIDES.get(bid_id, {})
+        )
+
     return {
         "status": "RECORDED",
         "bid_id": bid_id,
         "clause_id": payload.clause_id,
         "new_status": payload.new_status,
-        "message": f"Verdict for '{payload.clause_name}' overridden to {payload.new_status} with recorded justification."
+        "overall_status": AUDIT_CACHE.get(bid_id, {}).get("overall_status"),
+        "is_compliant": AUDIT_CACHE.get(bid_id, {}).get("is_compliant"),
+        "message": f"Verdict for '{payload.clause_name}' overridden to {payload.new_status}. Overall status recalculated to {AUDIT_CACHE.get(bid_id, {}).get('overall_status')}."
     }
 
 

@@ -313,6 +313,14 @@ def extract_tender_rfp_data(file_path: str) -> dict:
     elif any(k in clean_text.lower() for k in ["2-year", "2 year", "24 months"]):
         warranty_req = "2-Year Comprehensive Onsite Warranty"
 
+    min_warranty_years = 3
+    if "5-year" in warranty_req.lower():
+        min_warranty_years = 5
+    elif "2-year" in warranty_req.lower():
+        min_warranty_years = 2
+    elif "1-year" in warranty_req.lower():
+        min_warranty_years = 1
+
     return {
         "filename": os.path.basename(file_path),
         "file_type": file_type,
@@ -324,6 +332,7 @@ def extract_tender_rfp_data(file_path: str) -> dict:
         "min_turnover_cr": min_turnover_cr,
         "min_local_content_pct": min_local_content_pct,
         "warranty_requirement": warranty_req,
+        "min_warranty_years": min_warranty_years,
         "raw_summary": clean_text[:400].strip()
     }
 
@@ -390,20 +399,31 @@ def extract_document_data(file_path: str) -> dict:
         vendor_name = re.sub(r"[a-f0-9-]{36}_?", "", base).strip()
 
     # 5. Quoted Price in INR
-    quote_matches = re.findall(r"(?:INR|Rs\.?|₹|\bTotal\b[^\d]*)\s*([\d,]+(?:\.\d{2})?)", full_text, re.IGNORECASE)
     total_quote = None
-    if quote_matches:
-        cleaned = []
-        for q in quote_matches:
-            val_str = q.replace(",", "").strip()
-            try:
-                if val_str and float(val_str) > 10000:
-                    cleaned.append(float(val_str))
-            except ValueError:
-                continue
-        if cleaned:
-            # Prefer realistic quotation figure
-            total_quote = cleaned[0]
+    # Priority 1: Match explicit Total Financial Quote / Grand Total lines (e.g. BoQ price schedules)
+    total_match = re.search(r"(?:Total\s*(?:Financial\s*)?(?:Quote|Bid|Price|Amount)|Grand\s*Total|Final\s*(?:Quote|Price))[:\s]*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d{2})?)", full_text, re.IGNORECASE)
+    if total_match:
+        try:
+            val_str = total_match.group(1).replace(",", "").strip()
+            if val_str and float(val_str) > 0:
+                total_quote = float(val_str)
+        except ValueError:
+            pass
+
+    if total_quote is None:
+        quote_matches = re.findall(r"(?:INR|Rs\.?|₹|\bTotal\b[^\d]*)\s*([\d,]+(?:\.\d{2})?)", full_text, re.IGNORECASE)
+        if quote_matches:
+            cleaned = []
+            for q in quote_matches:
+                val_str = q.replace(",", "").strip()
+                try:
+                    v = float(val_str)
+                    if v > 10000:
+                        cleaned.append(v)
+                except ValueError:
+                    continue
+            if cleaned:
+                total_quote = cleaned[0]
 
     # 6. Self-Declared Turnover in Crores
     turnover_cr = None
@@ -413,30 +433,49 @@ def extract_document_data(file_path: str) -> dict:
         unit = turnover_match.group(2).lower()
         turnover_cr = val if "cr" in unit else (val / 100.0)
 
-    # 7. EMD Status
+    # 7. MSME Status & Negation Handling
+    non_msme_phrases = ["not an msme", "non-msme", "non msme", "not a micro", "not small enterprise", "ineligible for msme", "we are not an msme", "not registered as msme"]
+    is_explicitly_non_msme = any(p in full_text.lower() for p in non_msme_phrases)
+    if is_explicitly_non_msme:
+        is_msme = False
+    else:
+        is_msme = len(udyam_matches) > 0 or ("msme" in full_text.lower() and any(w in full_text.lower() for w in ["registered", "certificate", "udyam", "enterprise", "registration", "status"]))
+
+    # 8. EMD Status & Negation Handling
     emd_status = "MISSING"
-    if any(term in full_text.lower() for term in ["bank guarantee", "bg no", "fdr", "demand draft", "1,00,000", "emd submitted"]):
+    neg_emd = ["no bank guarantee", "not submitted", "not provided", "nil guarantee", "without emd", "no emd submitted", "no emd is submitted", "emd not submitted", "emd is not submitted"]
+    if any(p in full_text.lower() for p in neg_emd):
+        emd_status = "MISSING"
+    elif any(term in full_text.lower() for term in ["bank guarantee", "bg no", "fdr", "demand draft", "1,00,000", "emd submitted", "bg submitted"]):
         emd_status = "SUBMITTED"
-    elif ("exempt" in full_text.lower() or "waiver" in full_text.lower()) and (udyam_matches or "msme" in full_text.lower()):
+    elif ("exempt" in full_text.lower() or "waiver" in full_text.lower()) and is_msme:
         emd_status = "MSME_EXEMPT"
 
-    # 8. Warranty Terms
-    warranty_terms = "Standard"
+    # 9. Warranty Terms & Explicit Offered Duration
+    warranty_terms = "Standard OEM Warranty"
+    warranty_years = 1.0
     bonus_perks = []
     if any(k in full_text.lower() for k in ["5-year", "5 year", "60 months"]):
         warranty_terms = "5-Year Comprehensive 24x7 Onsite Warranty"
+        warranty_years = 5.0
         bonus_perks.append("5-Year Extended Onsite Warranty (Standard is 1-Year)")
     elif any(k in full_text.lower() for k in ["3-year", "3 year", "36 months"]):
         warranty_terms = "3-Year Comprehensive Warranty"
+        warranty_years = 3.0
     elif any(k in full_text.lower() for k in ["1-year", "1 year", "12 months"]):
         warranty_terms = "1-Year Standard OEM Warranty"
+        warranty_years = 1.0
     elif any(k in full_text.lower() for k in ["6-month", "6 month"]):
         warranty_terms = "6-Month Carry-in Warranty (Sub-standard)"
+        warranty_years = 0.5
+    else:
+        warranty_terms = "Unspecified Warranty"
+        warranty_years = None
 
     if "32gb" in full_text.lower() and "upgrade" in full_text.lower():
         bonus_perks.append("Free 32GB DDR5 RAM Upgrade (RFP asked for 16GB)")
 
-    # 9. Local Content %
+    # 10. Local Content %
     local_content_pct = 0
     lc_match = re.search(r"(\d{1,3})%\s*(?:Class-1|Local Content|Local Value)", full_text, re.IGNORECASE)
     if not lc_match:
@@ -444,7 +483,16 @@ def extract_document_data(file_path: str) -> dict:
     if lc_match:
         local_content_pct = int(lc_match.group(1))
 
-    gstin_expired = "EXPIRED" in full_text.upper() or "CANCELLED" in full_text.upper()
+    # Proximity check for GSTIN expiration: only if "expired"/"cancelled" is close to tax/gst terms
+    gst_expired_pattern = r"(?:gstin?|tax\s+registration|registration\s+status|tax\s+status)[^\n\r.]{0,60}\b(?:expired|cancelled|suspended)\b"
+    gstin_expired = bool(re.search(gst_expired_pattern, full_text, re.IGNORECASE))
+    if not gstin_expired and "EXPIRED" in full_text.upper() and ("GST" in full_text.upper() or "TAX" in full_text.upper()):
+        # Check lines containing GST and EXPIRED together
+        for line in full_text.split("\n"):
+            line_up = line.upper()
+            if ("GST" in line_up or "TAX" in line_up) and ("EXPIRED" in line_up or "CANCELLED" in line_up):
+                gstin_expired = True
+                break
 
     return {
         "filename": os.path.basename(file_path),
@@ -457,15 +505,16 @@ def extract_document_data(file_path: str) -> dict:
         "pan": pan_matches[0] if pan_matches else None,
         "all_pans": clean_pans,
         "udyam": udyam_matches[0] if udyam_matches else None,
-        "is_msme": len(udyam_matches) > 0 or "msme" in full_text.lower(),
+        "is_msme": is_msme,
         "total_quote_inr": total_quote,
         "turnover_cr": turnover_cr,
         "emd_status": emd_status,
         "warranty": warranty_terms,
+        "warranty_years": warranty_years,
         "bonus_perks": bonus_perks,
         "local_content_pct": local_content_pct,
         "raw_text_length": len(full_text),
-        "raw_text": full_text[:1200]
+        "raw_text": full_text
     }
 
 
