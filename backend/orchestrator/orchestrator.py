@@ -85,5 +85,8 @@ async def run_full_audit(file_path: str, tender_requirements: dict = None) -> di
         "bid_repair_guidance": risk_and_value["bid_repair"],
         "clause_level_decisions": clause_results,
         "government_verification": govt_verification,
+        "knowledge_graph": knowledge_graph,
     }
+
+
 
