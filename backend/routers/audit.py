@@ -9,6 +9,9 @@ from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Dict, Any, List, Literal
 from orchestrator.orchestrator import run_full_audit, compute_unified_audit_verdict
 from evidence_risk.graph_engine import build_compliance_knowledge_graph
+from evidence_risk.source_review import resolve_document, inspect_check, compare_results
+from security.sha256_audit import hash_file
+from orchestrator.ai_processing import extract_document_data
 from utils.pdf_generator import generate_certified_audit_pdf
 import os
 import json
@@ -42,6 +45,40 @@ AUDIT_OVERRIDE_EVENTS: List[Dict[str, Any]] = []  # in-memory cache
 ACTIVE_TENDER_CRITERIA: Dict[str, Any] = {}  # tender_id -> criteria
 ACTIVE_TENDER_EVIDENCE: Dict[str, Any] = {}
 AI_REVIEWS_IN_FLIGHT = set()
+# Session-only provenance and frozen machine evaluations; not a durable database.
+AUDIT_REVISIONS: Dict[str, Any] = {}
+AUDIT_SOURCE_REFS: Dict[str, Any] = {}
+AUDIT_CHECKLISTS: Dict[str, Any] = {}
+ACTIVE_TENDER_SOURCE_PATHS: Dict[str, str] = {}
+
+
+def require_source_integrity(audit_id):
+    result = AUDIT_CACHE.get(audit_id, {})
+    canonical_id = result.get('evaluation_id', audit_id)
+    references = list(AUDIT_SOURCE_REFS.get(canonical_id, AUDIT_SOURCE_REFS.get(audit_id, [])))
+    for item in AUDIT_CHECKLISTS.get(result.get('evaluation_id', audit_id), []):
+        if item.get('file_id'):
+            path = resolve_document(item['file_id'], UPLOAD_DIR, SAMPLE_DIRS)
+            references.append({'source': 'ATTACHMENT', 'filename': item['filename'], 'path': path, 'expected_sha256': item['sha256']})
+    if not references:
+        return {'status': 'UNAVAILABLE', 'sources': [], 'notice': 'No source baseline is available for this record.'}
+    checked = []
+    for reference in references:
+        try:
+            actual = hash_file(reference['path']) if reference.get('path') and os.path.isfile(reference['path']) else None
+        except OSError:
+            actual = None
+        unchanged = actual == reference['expected_sha256'] and actual is not None
+        checked.append({k: reference[k] for k in ('source', 'filename', 'expected_sha256')})
+        checked[-1].update(actual_sha256=actual, unchanged=unchanged)
+        if not unchanged:
+            append_override_event_to_disk({'event_id': str(uuid.uuid4()), 'bid_id': audit_id, 'action': 'SOURCE_INTEGRITY_FAILED',
+                'source': reference['source'], 'filename': reference['filename'], 'expected_sha256': reference['expected_sha256'],
+                'actual_sha256': actual, 'timestamp': datetime.datetime.now(datetime.timezone.utc).isoformat()})
+            raise HTTPException(status_code=409, detail='Source integrity check failed: a document changed or is unavailable. Review/export was blocked; upload a new submission and re-evaluate. Existing verdicts were not changed.')
+    return {'status': 'UNCHANGED', 'sources': checked, 'checked_at': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            'notice': 'Bytes match the stored evaluation baseline. This does not authenticate the document or issuer.'}
+
 
 
 def append_override_event_to_disk(event: dict):
@@ -73,6 +110,13 @@ def refresh_audit_outputs(cached: dict):
 
 def publish_audit(bid_id: str, cached: dict):
     AUDIT_CACHE[bid_id] = cached
+    if cached.get('evaluation_id'):
+        AUDIT_CACHE[cached['evaluation_id']] = cached
+        document_id = cached.get('document_id')
+        if document_id and AUDIT_CACHE.get(document_id, {}).get('evaluation_id') in (None, cached['evaluation_id']):
+            AUDIT_CACHE[document_id] = cached
+            if cached.get('tender_id'):
+                AUDIT_CACHE[f"{cached['tender_id']}::{document_id}"] = cached
     if cached.get("tender_id"):
         AUDIT_CACHE[f"{cached['tender_id']}::{bid_id}"] = cached
 
@@ -100,6 +144,7 @@ class RunAuditPayload(BaseModel):
     file_id: str
     tender_id: Optional[str] = "GEM/2026/B/892100"
     tender_requirements: Optional[TenderRequirements] = None
+    previous_evaluation_id: Optional[str] = Field(default=None, max_length=80)
 
 
 class ClauseOverridePayload(BaseModel):
@@ -121,30 +166,14 @@ async def trigger_audit(payload: RunAuditPayload):
     file_id = payload.file_id
     if not file_id or any(c in file_id for c in ("/", "\\", ":")) or file_id in (".", ".."):
         raise HTTPException(status_code=400, detail="Invalid document ID.")
-    target_file = None
-
-    if os.path.exists(UPLOAD_DIR):
-        for f in os.listdir(UPLOAD_DIR):
-            if f == file_id or f.startswith(file_id + "_"):
-                target_file = os.path.join(UPLOAD_DIR, f)
-                break
-
+    target_file = resolve_document(file_id, UPLOAD_DIR, SAMPLE_DIRS)
     if not target_file:
-        for sdir in SAMPLE_DIRS:
-            if os.path.exists(sdir):
-                for f in os.listdir(sdir):
-                    if f.lower() == file_id.lower():
-                        target_file = os.path.join(sdir, f)
-                        break
-            if target_file:
-                break
-
-    if not target_file or not os.path.exists(target_file):
-        raise HTTPException(
-            status_code=404,
-            detail=f"Document '{file_id}' not found in uploaded_docs or sample_bids."
-        )
-
+        raise HTTPException(status_code=404, detail='Document not found. Upload it before evaluation.')
+    if payload.previous_evaluation_id and payload.previous_evaluation_id not in AUDIT_REVISIONS:
+        raise HTTPException(status_code=404, detail='Original evaluation is unavailable. Session history resets after backend restart; run the original audit again.')
+    if payload.previous_evaluation_id:
+        require_source_integrity(payload.previous_evaluation_id)
+    baseline_hash = hash_file(target_file)
     audit_id = file_id
 
     # Clean fresh run: reset previous test overrides for this file unless explicitly retained
@@ -161,14 +190,37 @@ async def trigger_audit(payload: RunAuditPayload):
         tender_reqs = supplied or {}
         requirement_source = "OFFICER_SUPPLIED" if supplied is not None else "UNSPECIFIED"
 
+    tender_evidence = copy.deepcopy(ACTIVE_TENDER_EVIDENCE.get(payload.tender_id, {})) if registered is not None else {}
+    references = [{'source': 'BID', 'path': target_file, 'filename': os.path.basename(target_file), 'expected_sha256': baseline_hash}]
+    tender_path = ACTIVE_TENDER_SOURCE_PATHS.get(payload.tender_id)
+    if tender_path and tender_evidence.get('sha256'):
+        references.append({'source': 'TENDER', 'path': tender_path, 'filename': tender_evidence.get('filename') or os.path.basename(tender_path), 'expected_sha256': tender_evidence['sha256']})
+    for ref in references:
+        if not os.path.isfile(ref['path']) or hash_file(ref['path']) != ref['expected_sha256']:
+            raise HTTPException(status_code=409, detail='The source changed before evaluation. Reload the tender or upload a new document.')
     audit_results = await run_full_audit(target_file, tender_requirements=tender_reqs)
+    for ref in references:
+        if not os.path.isfile(ref['path']) or hash_file(ref['path']) != ref['expected_sha256']:
+            raise HTTPException(status_code=409, detail='The source changed during evaluation. The result was discarded; upload a new submission.')
     audit_results["tender_requirements"] = tender_reqs
     audit_results["tender_id"] = payload.tender_id
     audit_results["requirement_source"] = requirement_source
-    audit_results["tender_evidence"] = copy.deepcopy(ACTIVE_TENDER_EVIDENCE.get(payload.tender_id, {})) if registered is not None else {}
+    audit_results['tender_evidence'] = tender_evidence
+    evaluation_id = str(uuid.uuid4())
+    audit_results.update(evaluation_id=evaluation_id, document_id=file_id,
+                         evaluated_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                         parent_evaluation_id=payload.previous_evaluation_id)
+    if payload.previous_evaluation_id:
+        try:
+            audit_results['revision_comparison'] = compare_results(AUDIT_REVISIONS[payload.previous_evaluation_id], audit_results)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+    AUDIT_REVISIONS[evaluation_id] = copy.deepcopy(audit_results)
+    AUDIT_SOURCE_REFS[file_id] = references
+    AUDIT_SOURCE_REFS[evaluation_id] = copy.deepcopy(references)
 
     AUDIT_OVERRIDES.pop(audit_id, None)
-    AUDIT_CACHE[audit_id] = audit_results
+    publish_audit(audit_id, audit_results)
     if payload.tender_id:
         AUDIT_CACHE[f"{payload.tender_id}::{audit_id}"] = audit_results
 
@@ -203,6 +255,7 @@ def clear_all_overrides():
 def reset_vendor_overrides(bid_id: str):
     if bid_id not in AUDIT_CACHE:
         raise HTTPException(status_code=404, detail="Audit record not found. Run an audit first.")
+    require_source_integrity(bid_id)
     cached = copy.deepcopy(AUDIT_CACHE[bid_id])
     for key in ("clause_level_decisions", "branch_b_clause_results"):
         for clause in cached.get(key, []):
@@ -214,7 +267,7 @@ def reset_vendor_overrides(bid_id: str):
              "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()}
     append_override_event_to_disk(event)
     AUDIT_OVERRIDE_EVENTS.append(event)
-    AUDIT_OVERRIDES.pop(bid_id, None)
+    AUDIT_OVERRIDES.pop(cached.get('evaluation_id', bid_id), None)
     publish_audit(bid_id, cached)
     return {"status": "SUCCESS", "bid_id": bid_id, "overall_status": cached["overall_status"],
             "is_compliant": cached["is_compliant"], "results": cached, "audit_result": cached,
@@ -228,6 +281,7 @@ def record_clause_override(payload: ClauseOverridePayload):
     bid_id = payload.bid_id
     if bid_id not in AUDIT_CACHE:
         raise HTTPException(status_code=404, detail="Audit record not found. Run an audit first.")
+    require_source_integrity(bid_id)
     cached = copy.deepcopy(AUDIT_CACHE[bid_id])
     target = next((c for c in cached.get("clause_level_decisions", []) if c.get("clause_id") == payload.clause_id), None)
     if target is None:
@@ -246,7 +300,7 @@ def record_clause_override(payload: ClauseOverridePayload):
              "officer_name": payload.officer_name, "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()}
     append_override_event_to_disk(event)
     AUDIT_OVERRIDE_EVENTS.append(event)
-    AUDIT_OVERRIDES.setdefault(bid_id, {})[payload.clause_id] = {
+    AUDIT_OVERRIDES.setdefault(cached.get('evaluation_id', bid_id), {})[payload.clause_id] = {
         **event, "clause_name": target.get("clause_name"), "status": payload.new_status
     }
     publish_audit(bid_id, cached)
@@ -273,19 +327,20 @@ def download_audit_pdf(
     """
     Download the prototype procurement review report with recorded officer decisions.
     """
-    clean_id = audit_id.replace('.pdf','').replace('.docx','').replace('.xlsx','')
+    if audit_id not in AUDIT_CACHE:
+        raise HTTPException(status_code=404, detail='Audit record not found. Run an evaluation before exporting.')
+    require_source_integrity(audit_id)
+    canonical_id = AUDIT_CACHE[audit_id].get('evaluation_id', audit_id)
+    clean_id = str(uuid.uuid5(uuid.NAMESPACE_URL, canonical_id))
     pdf_report_path = os.path.join(REPORTS_DIR, f"Audit_Report_{clean_id}.pdf")
-    
     if audit_id in AUDIT_CACHE:
         generate_certified_audit_pdf(
-            AUDIT_CACHE[audit_id],
+            {**AUDIT_CACHE[audit_id], 'submission_checklist': AUDIT_CHECKLISTS.get(canonical_id, [])},
             pdf_report_path,
             officer_name=officer_name,
             officer_designation=officer_designation,
-            officer_overrides=AUDIT_OVERRIDES.get(audit_id, {})
+            officer_overrides=AUDIT_OVERRIDES.get(canonical_id, {})
         )
-    elif not os.path.exists(pdf_report_path):
-        raise HTTPException(status_code=404, detail=f"Audit report for audit_id '{audit_id}' not found. Please run the audit first.")
 
     vendor_name = AUDIT_CACHE.get(audit_id, {}).get("file_info", {}).get("vendor_name", "Vendor").replace(" ", "_")
     download_filename = f"BidLens_Procurement_Review_{vendor_name}_{clean_id[:8]}.pdf"
@@ -334,7 +389,7 @@ class AgentReviewPayload(BaseModel):
 def agent_configuration():
     config = get_gemini_config()
     return {"provider": "Google Gemini", "model": config["model"], "configured": bool(config["api_key"]),
-            "advisory_only": True, "cloud_processing": True, "max_tool_calls": 6, "diagnostics_version": 2,
+            "advisory_only": True, "cloud_processing": True, "max_tool_calls": 6, "diagnostics_version": 2, "workflow_version": 1,
             "notice": "Optional cloud review sends selected audit context and retrieved document excerpts to Google. Use synthetic demo documents; free-tier data may be used for product improvement."}
 
 
@@ -346,6 +401,7 @@ async def run_agent_evidence_review(bid_id: str, payload: Optional[AgentReviewPa
         raise HTTPException(status_code=503, detail="Gemini API key is not configured. Add GEMINI_API_KEY to backend/.env; the deterministic audit remains available.")
     if payload is None or not payload.cloud_consent:
         raise HTTPException(status_code=400, detail="Explicit cloud-processing consent and a selected requirement check are required.")
+    require_source_integrity(bid_id)
     snapshot = copy.deepcopy(AUDIT_CACHE[bid_id])
     clause = next((c for c in snapshot.get("clause_level_decisions", []) if c.get("clause_id") == payload.clause_id), None)
     if clause is None:
@@ -358,6 +414,7 @@ async def run_agent_evidence_review(bid_id: str, payload: Optional[AgentReviewPa
     version = audit_fingerprint(snapshot)
     try:
         result = await EvidenceReviewAgent().review_bid_submission(snapshot, payload.clause_id)
+        require_source_integrity(bid_id)
         current = AUDIT_CACHE.get(bid_id)
         if current is None or audit_fingerprint(current) != version:
             raise HTTPException(status_code=409, detail="The audit changed during AI review. Discarded the stale advice; request a fresh review.")
@@ -366,3 +423,101 @@ async def run_agent_evidence_review(bid_id: str, payload: Optional[AgentReviewPa
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     finally:
         AI_REVIEWS_IN_FLIGHT.discard(bid_id)
+
+
+@router.get('/integrity/{audit_id}')
+def inspect_source_integrity(audit_id: str):
+    if audit_id not in AUDIT_CACHE:
+        raise HTTPException(status_code=404, detail='Evaluation not found.')
+    return require_source_integrity(audit_id)
+
+
+@router.get('/evidence/{audit_id}/{clause_id}')
+def inspect_source_evidence(audit_id: str, clause_id: str):
+    if audit_id not in AUDIT_CACHE:
+        raise HTTPException(status_code=404, detail='Evaluation not found. Run the audit again if the backend restarted.')
+    integrity = require_source_integrity(audit_id)
+    try:
+        result = inspect_check(AUDIT_CACHE[audit_id], clause_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail='Requirement check not found.') from exc
+    canonical_id = AUDIT_CACHE[audit_id].get('evaluation_id', audit_id)
+    available = {ref['source'] for ref in AUDIT_SOURCE_REFS.get(canonical_id, [])}
+    for group in result['sources']:
+        group['original_available'] = group['source'] in available
+    return {**result, 'integrity': integrity}
+
+
+@router.get('/source/{audit_id}/{source}')
+def inspect_original_document(audit_id: str, source: str):
+    if audit_id not in AUDIT_CACHE or source not in ('BID', 'TENDER'):
+        raise HTTPException(status_code=404, detail='Source document not found.')
+    require_source_integrity(audit_id)
+    ref = next((r for r in AUDIT_SOURCE_REFS.get(AUDIT_CACHE[audit_id].get('evaluation_id', audit_id), []) if r['source'] == source), None)
+    if not ref:
+        raise HTTPException(status_code=404, detail='Original source is unavailable for this record.')
+    media = 'application/pdf' if ref['filename'].lower().endswith('.pdf') else 'application/octet-stream'
+    return FileResponse(ref['path'], media_type=media, filename=ref['filename'], content_disposition_type='inline' if media == 'application/pdf' else 'attachment')
+
+
+@router.get('/comparison/{evaluation_id}')
+def inspect_revision_comparison(evaluation_id: str):
+    revised = AUDIT_REVISIONS.get(evaluation_id)
+    original = AUDIT_REVISIONS.get(revised.get('parent_evaluation_id')) if revised else None
+    if not original:
+        raise HTTPException(status_code=404, detail='Linked original evaluation not found in this session.')
+    require_source_integrity(original['evaluation_id'])
+    require_source_integrity(evaluation_id)
+    return compare_results(original, revised)
+
+
+class ChecklistItem(BaseModel):
+    item_id: str = Field(min_length=1, max_length=60, pattern=r'^[A-Za-z0-9_-]+$')
+    name: str = Field(min_length=2, max_length=120)
+    file_id: Optional[str] = Field(default=None, min_length=1, max_length=300)
+
+
+class ChecklistPayload(BaseModel):
+    items: List[ChecklistItem] = Field(max_length=20)
+
+
+@router.get('/checklist/{audit_id}')
+def get_submission_checklist(audit_id: str):
+    if audit_id not in AUDIT_CACHE:
+        raise HTTPException(status_code=404, detail='Evaluation not found.')
+    require_source_integrity(audit_id)
+    key = AUDIT_CACHE[audit_id].get('evaluation_id', audit_id)
+    return {'items': AUDIT_CHECKLISTS.get(key, []), 'notice': 'Officer-defined receipt checklist. Files are not combined into the compliance audit; receipt and readability do not establish authenticity or compliance. Stored for this backend session only.'}
+
+
+@router.post('/checklist/{audit_id}')
+def save_submission_checklist(audit_id: str, payload: ChecklistPayload):
+    if audit_id not in AUDIT_CACHE:
+        raise HTTPException(status_code=404, detail='Evaluation not found.')
+    require_source_integrity(audit_id)
+    if len({i.item_id for i in payload.items}) != len(payload.items):
+        raise HTTPException(status_code=400, detail='Checklist item IDs must be unique.')
+    saved = []
+    for item in payload.items:
+        row = {'item_id': item.item_id, 'name': item.name.strip(), 'file_id': item.file_id, 'receipt_status': 'MISSING'}
+        if len(row['name']) < 2:
+            raise HTTPException(status_code=400, detail='Requirement name must contain at least two non-space characters.')
+        if item.file_id:
+            try:
+                path = resolve_document(item.file_id, UPLOAD_DIR, SAMPLE_DIRS)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            if not path:
+                raise HTTPException(status_code=404, detail='Assigned attachment not found. Upload it before assigning it.')
+            digest = hash_file(path)
+            extracted = extract_document_data(path)
+            if hash_file(path) != digest:
+                raise HTTPException(status_code=409, detail='Attachment changed during receipt checking; upload it again.')
+            readable = bool((extracted.get('raw_text') or '').strip())
+            complete = extracted.get('extraction_complete') is True
+            row.update(filename=os.path.basename(path), sha256=digest, extraction_complete=complete,
+                       receipt_status='RECEIVED_UNVERIFIED' if readable and complete else 'NEEDS_INSPECTION')
+        saved.append(row)
+    key = AUDIT_CACHE[audit_id].get('evaluation_id', audit_id)
+    AUDIT_CHECKLISTS[key] = saved
+    return {'items': saved, 'notice': 'Receipt checklist saved for this session. Audit verdict unchanged; attached files are not included in rule evaluation.'}

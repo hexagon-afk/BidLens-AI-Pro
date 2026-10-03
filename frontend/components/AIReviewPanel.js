@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 export default function AIReviewPanel({ backendUrl, vendor, clause }) {
+  const auditId = vendor.evaluation_id || vendor.file_id;
   const [config, setConfig] = useState(null);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -35,14 +36,14 @@ export default function AIReviewPanel({ backendUrl, vendor, clause }) {
     requestController.current = controller;
     const timer = setTimeout(() => controller.abort(), 75000);
     try {
-      const response = await fetch(`${backendUrl}/audit/agent/review/${encodeURIComponent(vendor.file_id)}`, {
+      const response = await fetch(`${backendUrl}/audit/agent/review/${encodeURIComponent(auditId)}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
         body: JSON.stringify({ clause_id: clause.clause_id, cloud_consent: true,
           expected_status: clause.status, source_sha256: vendor.file_info?.source_sha256 }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'AI review failed. Reload this audit and try again.');
-      if (!data.advisory_only || data.status !== 'COMPLETED' || data.clause_id !== clause.clause_id || data.bid_id !== vendor.file_id) {
+      if (!data.advisory_only || data.status !== 'COMPLETED' || data.clause_id !== clause.clause_id || data.bid_id !== auditId) {
         throw new Error('The AI response did not match this selected requirement. Review discarded.');
       }
       if (alive.current) setResult(data);

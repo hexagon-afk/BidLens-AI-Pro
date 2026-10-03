@@ -1,4 +1,4 @@
-> **Current Demo Baseline:** Read [DEMO_READINESS.md](DEMO_READINESS.md) and [DEMO_WALKTHROUGH.md](DEMO_WALKTHROUGH.md) for verified scope, test procedures, and system boundaries. This platform performs deterministic statutory checks and on-device OCR. Optional Gemini advisory evidence review operates via bounded read-only tools. Live registry integrations, cryptographically authenticated officer identity, and multi-attachment bundle synthesis remain roadmap items.
+> **Current Demo Baseline:** Read [DEMO_READINESS.md](DEMO_READINESS.md) and [DEMO_WALKTHROUGH.md](DEMO_WALKTHROUGH.md) for verified scope, test procedures, and system boundaries. This platform performs five deterministic tender checks and on-device OCR. The latest upgrade adds original-source keyword inspection, frozen session revision comparisons, an officer-defined receipt checklist and active source-integrity guards. Results and versions still disappear on backend restart; matching source bytes do not authenticate documents. Optional Gemini advisory evidence review operates via bounded read-only tools. Live registry integrations, cryptographically authenticated officer identity, and multi-attachment bundle synthesis remain roadmap items.
 
 # BidLens AI 🔍
 ### *AI-Powered GeM Bid Compliance & Statutory Verification Platform*
@@ -6,15 +6,16 @@
 
 ---
 
-[![Tests: 106 Passed](https://img.shields.io/badge/Tests-106%20Passed-brightgreen.svg?logo=pytest)](backend/tests/)
+[![Tests: 124 Passed](https://img.shields.io/badge/Tests-124%20Passed-brightgreen.svg?logo=pytest)](backend/tests/)
 [![Python: 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg?logo=python)](https://www.python.org/)
 [![FastAPI: 0.111.0](https://img.shields.io/badge/FastAPI-0.111.0-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com)
-[![Next.js: 14](https://img.shields.io/badge/Next.js-14.2-black.svg?logo=next.js)](https://nextjs.org/)
+[![Next.js: 15.5.27](https://img.shields.io/badge/Next.js-15.5.27-black.svg?logo=next.js)](https://nextjs.org/)
 [![RapidOCR](https://img.shields.io/badge/OCR-RapidOCR%20ONNX-orange.svg)](https://github.com/RapidAI/RapidOCR)
 [![Google Gemini API](https://img.shields.io/badge/AI%20Review-Gemini%20Interactions-4285F4.svg?logo=google)](https://ai.google.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > 🌐 **Repository:** [https://github.com/hexagon-afk/BidLens-AI-Pro](https://github.com/hexagon-afk/BidLens-AI-Pro)  
+> 🌐 **Hosted Prototype:** [bidlens-ai-prox.vercel.app](https://bidlens-ai-prox.vercel.app/) | [Render backend](https://bidlens-ai-pro.onrender.com/)
 > ⚡ **Local Backend API:** `http://127.0.0.1:8000` (Docs: `http://127.0.0.1:8000/docs`)  
 > 💻 **Local Frontend Portal:** `http://localhost:3000`  
 > 🛡️ **Edge System Health Check:** `http://127.0.0.1:8000/system/health`  
@@ -32,13 +33,13 @@ Manual scrutiny suffers from:
 * **Lengthy Evaluation Cycles:** Weeks spent manually validating GSTIN formats, PAN correlation, and technical warranty terms.
 * **Integrity & Tampering Risks:** Absence of an immutable supervisory decision trail and cryptographic document hashing.
 
-**BidLens AI** is an intelligent, auditable procurement co-pilot designed for GeM evaluating officers. It pairs **deterministic statutory verification** (enforcing GFR 2017 Rules 149, 160, 170, and Make in India preferences) with an **autonomous Gemini Evidence Review Agent** (`EvidenceReviewAgent`) equipped with bounded, read-only tools to retrieve and verify quoted evidence directly from submitted files.
+**BidLens AI** is an intelligent, auditable procurement co-pilot designed for GeM evaluating officers. It pairs **five implemented tender checks and offline identity validation** with an **autonomous Gemini Evidence Review Agent** (`EvidenceReviewAgent`) equipped with bounded, read-only tools to retrieve and verify quoted evidence directly from submitted files.
 
 ---
 
 ## 🏛️ System Architecture
 
-BidLens AI is structured into a **6-Layer Sovereign Architecture**:
+BidLens AI is structured into a **six logical application layers**:
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -65,7 +66,7 @@ BidLens AI is structured into a **6-Layer Sovereign Architecture**:
 │  Cross-Document Contradiction ───► Knowledge Graph ───► Risk Scorer    │
 │            Detector                      (NetworkX)     (Explainable)  │
 └───────────────────────────────────┬────────────────────────────────────┘
-                                    │ Verified Excerpts
+                                    │ Inspected Excerpts
 ┌───────────────────────────────────▼────────────────────────────────────┐
 │            Layer 5: Autonomous Gemini Evidence Review Agent            │
 │   Bounded Read-Only Tools (get_clause_result, search_evidence,         │
@@ -73,8 +74,8 @@ BidLens AI is structured into a **6-Layer Sovereign Architecture**:
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │ Officer Review & Overrides
 ┌───────────────────────────────────▼────────────────────────────────────┐
-│                Layer 6: Audit Logging & Certified Reports              │
-│    Durable JSONL Override Trail • Official 2-Page PDF Audit Dossier    │
+│                Layer 6: Audit Logging & Prototype Reports              │
+│    Local JSONL Override Trail • Prototype PDF Review Report    │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -98,37 +99,37 @@ Legal procurement rules are executed exclusively via deterministic Python logic�
   * `NEEDS_REVIEW`: Ambiguous evidence, claimed exemption lacking category proof, or incomplete scan.
 * **Implemented Tender-Bound Clauses:**
   1. `RULE-149-GSTIN`: Offline Modulus-36 checksum calculation and PAN extraction.
-  2. `RULE-160-TURNOVER`: Average turnover vs. tender threshold, with MSE exemption review.
+  2. `RULE-160-TURNOVER`: Declared turnover vs. tender threshold, with MSE exemption review. This internal ID is not a citation establishing a turnover rule under GFR Rule 160.
   3. `RULE-170-EMD`: EMD amount validation, separating instrument IDs (e.g. Bank Guarantee numbers) from monetary amounts (with Lakh/Crore multipliers).
   4. `MII-LOCAL-CONTENT`: Class-1 / Class-2 local content domestic value-addition threshold verification.
   5. `SPEC-WARRANTY`: Independent evaluation of warranty duration (years) and service SLA location (`Carry-in` vs `Onsite`).
 
 ### 3. Cross-Document Contradiction Detector
 Scans extracted vendor filings for integrity discrepancies:
-* `CONTRA-PAN-01`: Flags multiple conflicting PAN numbers across submitted attachments.
+* `CONTRA-PAN-01`: Flags differing PAN numbers within one submitted file; separate attachments are not combined.
 * `CONTRA-GST-PAN-02`: Validates that characters 3–12 of the GSTIN strictly match the declared PAN.
 * `CONTRA-TAX-03`: Flags expired or invalid tax validity dates.
 * `CONTRA-ELIG-04`: Detects turnover shortfalls against tender requirements for non-MSE bidders.
 * `CONTRA-MII-05`: Catches unsubstantiated Make in India self-declarations lacking declared percentage.
 
 ### 4. Clause-to-Evidence Knowledge Graph
-Constructed via `NetworkX`, generating an auditable compliance graph:
+Constructed via `NetworkX`, linking generated check summaries. It is not a complete verified source-page evidence graph:
 $$\text{Statutory Regulation} \longrightarrow \text{Tender Requirement} \longrightarrow \text{Extracted Evidence} \longrightarrow \text{Audit Verdict}$$
 
 ### 5. Autonomous Gemini Evidence Review Agent (`EvidenceReviewAgent`)
-An advisory co-pilot that assists officers in scrutinizing evidence without modifying legal verdicts:
+An advisory co-pilot that assists officers in scrutinizing evidence without modifying machine verdicts:
 * **Interactions API Architecture:** Multi-turn tool execution loop using `google-genai` (SDK 2.28+).
 * **Bounded Read-Only Tools:**
   * `get_clause_result`: Inspects machine verdict, tender threshold, and rule explanation.
   * `search_evidence`: Locates candidate text passages across tender and bid records.
   * `read_evidence`: Retrieves exact text snippets by source ID and page number.
 * **Strict Anti-Hallucination & Quote Verification:** The agent's final JSON advice is discarded if quoted text does not match extracted source documents or if fabricated citations are detected.
-* **Untrusted Document Containment:** Extracted PDF/Word text is sanitized and encapsulated within strict `<UNTRUSTED_DOCUMENT>` XML boundaries to prevent prompt-injection attacks.
+* **Untrusted Document Containment:** Extracted PDF/Word text is sanitized and encapsulated within strict `<UNTRUSTED_DOCUMENT>` XML boundaries to reduce prompt-injection exposure; this is not proof that all such attacks are prevented.
 * **Safe Diagnostics (Version 2):** Distinct HTTP error handlers (400, 402, 403, 422, 429) provide clear diagnostic references without exposing API keys or document contents.
 
-### 6. Supervisory Review & Durable JSONL Audit Trail
+### 6. Supervisory Review & Local JSONL Event Trail
 * **Justified Overrides:** Officers can override any machine verdict (`PASS`, `FAIL`, `EXEMPT`, `NEEDS_REVIEW`) by providing a mandatory written justification (minimum 5 characters).
-* **Durable Event Log:** Overrides are appended sequentially to [`backend/generated_reports/audit_override_trail.jsonl`](backend/generated_reports/audit_override_trail.jsonl) before results are published.
+* **Local Event Log:** Overrides are appended sequentially to [`backend/generated_reports/audit_override_trail.jsonl`](backend/generated_reports/audit_override_trail.jsonl) before results are published.
 * **Live Re-Aggregation:** Overriding a clause triggers an instant re-aggregation of overall bid status, risk score, executive summary, and shortlist eligibility.
 * **1-Click Reset:** Officers can reset overrides for any bid to instantly restore the original machine evaluation.
 
@@ -138,28 +139,29 @@ An advisory co-pilot that assists officers in scrutinizing evidence without modi
 
 Tested against the master tender **`Tender_RFP_GeM_Computers.pdf`** (Budget: ₹50,00,000 | EMD: ₹1,00,000 | Min Turnover: ₹1.50 Cr | Local Content: $\ge$ 50% | Warranty: 3 Years Onsite):
 
-| Vendor Submission | Primary Format | Machine Verdict | Statutory Summary & Test Gates |
+| Vendor submission | Format | Machine verdict | Verified demo outcome |
 | :--- | :--- | :--- | :--- |
-| **MegaTech BigBrand** | PDF + Excel BoQ | `COMPLIANT` | Passes all 5 clauses. Turnover (₹15 Cr) and EMD (₹1 Lakh) meet requirements. 3-Year Onsite warranty confirmed. BoQ quote: ₹48 Lakh. |
-| **Apex Labs Micro Devices** | Multi-Page PDF | `NEEDS_REVIEW` | Claimed MSE turnover and EMD exemptions require officer verification of Udyam category. Class-1 Local Content (68%) verified. |
-| **GlobalCorp Ineligible** | Multi-Page PDF | `CRITICAL_RISK` | Multiple critical failures: Embedded GSTIN/PAN mismatch, expired tax registration, 1-Year Carry-in warranty (fails 3-Year Onsite requirement). |
-| **GlobalCorp Rectified** | Multi-Page PDF | `COMPLIANT` | Corrected re-submission: Validated checksum GSTIN, matching PAN, 3-Year Onsite warranty, full EMD submission. |
-| **Scanned Letter ApexLabs** | PNG (Image OCR) | `NEEDS_REVIEW` | Processed via local `RapidOCR`. Candidate values extracted and staged for officer review. |
-| **BoQ Price Schedule** | XLSX Spreadsheet | `COMPLIANT` | Ingested via `openpyxl`. Itemized prices, quantities, and GST rates parsed deterministically. |
+| MegaTech BigBrand | PDF | `COMPLIANT` | Five implemented checks pass. Authenticity and award suitability remain unverified. |
+| ApexLabs MSME | PDF | `NEEDS_REVIEW` | Three checks pass; turnover and EMD exemption claims require officer verification. |
+| GlobalCorp original | PDF | `NON_COMPLIANT` | Five implemented checks fail. |
+| GlobalCorp rectified | PDF | `COMPLIANT` | Five implemented checks pass; linked comparison preserves the original machine result. |
+| ApexLabs proposal | DOCX | `NEEDS_REVIEW` | Independently evaluated; unresolved evidence requires inspection. |
+| BoQ price schedule | XLSX | `NEEDS_REVIEW` | A price attachment alone does not establish the other compliance requirements. |
+| Scanned ApexLabs letter | PNG | `NEEDS_REVIEW` | OCR candidate values require confirmation against the source image. |
 
 ---
 
 ## 🧪 Test Suite & Architectural Gates
 
-The test suite contains **106 automated tests** executing in **~8.4 seconds** across unit, integration, and security layers:
+The test suite contains **124 automated tests** executing in **21.02 seconds** in this local run across unit, integration, and security layers:
 
 ```bash
-# Run the complete test suite from the backend directory
-C:\BIdver\BidLens-AI\backend\venv\Scripts\python.exe -m pytest backend/tests -v
+# Run the complete test suite from the project root
+.\.venv\Scripts\python.exe -m pytest backend/tests -q
 ```
 
 ```text
-======================= 106 passed, 3 warnings in 8.40s =======================
+======================= 124 passed, 1 warning in 21.02s =======================
 ```
 
 ### Key Verified Quality Gates:
@@ -178,6 +180,14 @@ C:\BIdver\BidLens-AI\backend\venv\Scripts\python.exe -m pytest backend/tests -v
 
 ---
 
+## Latest evidence workflow
+
+- **Original-source inspection:** literal tender/bid keyword candidates, real PDF page markers and original document downloads, including unreadable sources. Matches are not validated semantic mappings.
+- **Linked re-evaluation:** unique evaluation IDs and frozen machine results in memory; the backend rejects a comparison against different tender criteria/source versions. Officer decisions remain separate.
+- **Receipt checklist:** up to 20 officer-defined requirements. MISSING, RECEIVED_UNVERIFIED and NEEDS_INSPECTION track receipt/readability; attachments do not get merged into the rule audit.
+- **Active integrity guards:** changed/missing source bytes block inspection, comparison, officer decisions, model review and export with HTTP 409. Local digests/events are not tamper-proof or document authentication.
+- **Validation:** 124 backend tests and the production frontend build passed. The local six-document rehearsal returned 1 compliant, 4 under review and 1 non-compliant; the GlobalCorp revision changed five statuses. No model call was made for this upgrade.
+
 ## 📡 API Reference
 
 ### Tender & Document Ingestion
@@ -186,7 +196,7 @@ C:\BIdver\BidLens-AI\backend\venv\Scripts\python.exe -m pytest backend/tests -v
 | `POST` | `/document/tender/upload` | Ingest RFP PDF and extract budget, EMD, turnover, and warranty criteria |
 | `GET` | `/document/tender/sample` | Load pre-packaged GeM Computer Tender RFP criteria |
 | `POST` | `/document/sample/load/{name}` | Load a specific sample bid document into the active evaluation staging |
-| `POST` | `/document/samples/load` | 1-Click ingestion of all standard sample bids |
+| `POST` | `/document/sample/vendor-bids` | 1-Click ingestion of all standard sample bids |
 | `POST` | `/document/upload` | Upload vendor document, calculate SHA-256 fingerprint, and stage for audit |
 
 ### Compliance Audit & Agent Review
@@ -196,16 +206,27 @@ C:\BIdver\BidLens-AI\backend\venv\Scripts\python.exe -m pytest backend/tests -v
 | `GET` | `/audit/status/{audit_id}` | Retrieve cached audit findings, risk score, and clause decisions |
 | `POST` | `/audit/clause-override` | Record officer clause override with **mandatory written justification** |
 | `POST` | `/audit/overrides/reset/{bid_id}` | Reset overrides for a specific vendor bid and restore machine verdicts |
-| `GET` | `/audit/overrides/trail` | Retrieve the **durable append-only JSONL override audit trail** |
+| `GET` | `/audit/overrides/trail` | Retrieve the locally appended JSONL override trail (not cryptographically protected or guaranteed to survive deployment) |
 | `GET` | `/audit/agent/config` | Check Gemini model presence and configuration status (never leaks API key) |
 | `POST` | `/audit/agent/review/{bid_id}` | Trigger autonomous **`EvidenceReviewAgent`** tool-calling evaluation |
-| `GET` | `/audit/report/pdf/{audit_id}` | Download official 2-Page Audit Report with override log and manual sign-off |
+| `GET` | `/audit/report/pdf/{audit_id}` | Download a prototype review report with evaluation ID, receipt checklist, officer decisions and manual sign-off |
+
+### Source inspection, session comparison and receipt
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/audit/evidence/{evaluation_id}/{clause_id}` | Source-checked literal keyword passages |
+| `GET` | `/audit/source/{evaluation_id}/BID` or `/TENDER` | Original document for officer inspection |
+| `GET` | `/audit/integrity/{evaluation_id}` | Rehash source bytes; mismatch blocks review/export |
+| `GET` | `/audit/comparison/{evaluation_id}` | Frozen original/revised machine comparison |
+| `GET` / `POST` | `/audit/checklist/{evaluation_id}` | Officer-defined document receipt checklist |
+
+POST /audit/run accepts previous_evaluation_id for a revision. Prototype routes do not add authentication/access control; use synthetic documents on the public demo. GET /audit/agent/config includes workflow_version=1 to identify the deployed workflow, not to prove live Gemini availability.
 
 ### System & Health Telemetry
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
 | `GET` | `/` | Root service status and API version metadata |
-| `GET` | `/system/health` | Sovereign edge metrics, memory footprint, and air-gap integrity |
+| `GET` | `/system/health` | Backend status and local runtime metrics; not proof of air-gap integrity |
 
 ---
 
@@ -225,7 +246,7 @@ Double-click `Start_BidLens.bat` in the project root. This opens two terminal wi
 
 ### Option 2: Manual Terminal Setup
 
-#### Terminal 1: FastAPI Sovereign Backend
+#### Terminal 1: FastAPI Prototype Backend
 ```powershell
 cd C:\BIdver\BidLens-AI-Pro\backend
 

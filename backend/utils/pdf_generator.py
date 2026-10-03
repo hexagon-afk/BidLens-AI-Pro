@@ -168,8 +168,19 @@ def generate_certified_audit_pdf(
 
     # ── 1. Document Title & Header ────────────────────────────
     story.append(Paragraph("PROCUREMENT REVIEW REPORT (PROTOTYPE)", title_style))
-    story.append(Paragraph(f"Tender Ref: {active_tender_id} | Evaluation Timestamp: {datetime.datetime.now().strftime('%d-%b-%Y %H:%M:%S')}", subtitle_style))
+    story.append(Paragraph(f"Tender Ref: {active_tender_id} | Report Generated: {datetime.datetime.now().strftime('%d-%b-%Y %H:%M:%S')}", subtitle_style))
     story.append(HRFlowable(width="100%", thickness=1, color=colors.black, spaceBefore=1, spaceAfter=4))
+    if audit_data.get('evaluation_id'):
+        story.append(Paragraph(f"Evaluation ID: {audit_data['evaluation_id']} | Machine evaluated: {audit_data.get('evaluated_at', 'Unavailable')}", subtitle_style))
+    if audit_data.get('parent_evaluation_id'):
+        story.append(Paragraph(f"Original evaluation: {audit_data['parent_evaluation_id']} | Linked revised submission; machine comparison is separate from officer decisions.", subtitle_style))
+    checklist = audit_data.get('submission_checklist', [])
+    if checklist:
+        story.append(Paragraph("Submission receipt checklist (officer-defined)", h1_style))
+        story.append(Paragraph("Receipt is not proof of authenticity or compliance. These attachments are not merged into the rule audit. Session records reset on backend restart.", body_style))
+        for item in checklist:
+            story.append(Paragraph(f"{item['name']}: {item['receipt_status']} | {item.get('filename') or 'No file assigned'}", body_style))
+
 
     # ── 2. Executive Overview Table (Black & White) ───────────
     passed = comp_sum.get('passed', 0)

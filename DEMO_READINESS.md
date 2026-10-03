@@ -2,6 +2,23 @@
 
 This branch prioritizes correct, reviewable procurement checks. Optional Gemini cloud evidence review is implemented; it requires a server API key and explicit officer consent. Live provider execution must be rehearsed before presenting it as operational.
 
+## Latest non-LLM demo workflow (3 October 2026)
+
+- Each audit receives a unique evaluation ID, UTC timestamp and source digest. Machine results are frozen in memory; officer decisions remain separate. Versions still disappear on backend restart.
+- Vendor Detail includes original tender/bid passages for the selected check. PDF page numbers come from extraction markers; other formats do not get invented pages. These are literal keyword candidates for inspection, not validated semantic clause mappings. The officer can open the original source, including when no passage is found.
+- Re-evaluation links a new submission to the original evaluation ID. The backend rejects different tender criteria/source versions and compares five check families, changed extracted fields and source digests. The sample GlobalCorp revision changes five failed checks to five passes. Officer overrides cannot rewrite the original machine comparison.
+- The officer can define up to 20 required documents and assign the current bid or upload attachments. MISSING, RECEIVED_UNVERIFIED and NEEDS_INSPECTION describe receipt/readability only. These files are not merged into compliance evaluation, and checklist receipt never grants a pass or exemption.
+- Stored bid/tender/checklist bytes are rehashed before source inspection, revision comparison, officer decisions, model review and PDF export. Changed or missing sources block those operations with HTTP 409 and record a local integrity event; cached verdicts are not rewritten. Matching digests do not authenticate an issuer or make the trail tamper-proof.
+- PDF export uses the selected evaluation ID and includes its timestamp, parent ID when present, officer decisions and the receipt checklist. Model advice remains separate.
+- Verified locally: 124 backend tests passed; production frontend build passed. Six synthetic sample documents returned 1 COMPLIANT, 4 NEEDS_REVIEW and 1 NON_COMPLIANT. Linked GlobalCorp comparison changed five statuses. Both warranty sources returned literal passages; checklist statuses and evaluation ID appeared in the rendered PDF.
+- No Gemini calls were made for these changes. Cloud review availability is not newly verified. Browser automation failed during tool initialization; manually check the new screens before presenting.
+
+### Deployment and restart
+
+The current frontend is https://bidlens-ai-prox.vercel.app/ and the backend is https://bidlens-ai-pro.onrender.com/. Deploy both from the same main commit. GET /audit/agent/config must include workflow_version=1; this is a deployment marker, not proof of model availability. Hard-refresh the frontend and rerun Run Complete Sample Demo after the backend deploys, because prior session evaluations no longer exist.
+
+New read-only routes: /audit/evidence/{evaluation_id}/{clause_id}, /audit/source/{evaluation_id}/BID or TENDER, /audit/integrity/{evaluation_id}, /audit/comparison/{evaluation_id}. GET/POST /audit/checklist/{evaluation_id} manage receipt items. POST /audit/run accepts previous_evaluation_id for a linked revision. Original sources are downloadable by evaluation ID; these prototype routes do not add authentication or access control. Use only synthetic documents on the public demo.
+
 ## Run locally
 
 Use two PowerShell terminals from the project root:

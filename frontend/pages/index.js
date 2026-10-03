@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import AIReviewPanel from '../components/AIReviewPanel';
+import SourceEvidencePanel from '../components/SourceEvidencePanel';
+import RevisionComparison from '../components/RevisionComparison';
+import SubmissionChecklist from '../components/SubmissionChecklist';
 
 const getBackendUrl = () => {
   if (typeof window !== 'undefined') {
@@ -42,7 +45,6 @@ export default function Home() {
 
   // Re-evaluation State (Interactive)
   const [reEvalSelectedVendor, setReEvalSelectedVendor] = useState(null);
-  const [reEvalPreviousResult, setReEvalPreviousResult] = useState(null);
   const [reEvalResult, setReEvalResult] = useState(null);
   const reEvalFileInputRef = useRef(null);
 
@@ -342,8 +344,15 @@ export default function Home() {
       target = bids.find((b) => b?.file_info?.vendor_name?.toLowerCase().includes('globalcorp')) || bids.find((b) => evaluationStatus(b) === 'NON_COMPLIANT') || bids[0];
       if (target) {
         setReEvalSelectedVendor(target);
-        setReEvalPreviousResult(target);
       }
+    }
+    if (!target?.file_info?.vendor_name?.toLowerCase().includes('globalcorp')) {
+      setStatusMessage('The rectified sample belongs to GlobalCorp. Select its original evaluation or upload a revision for the selected bidder.');
+      return;
+    }
+    if (!target.evaluation_id) {
+      setStatusMessage('Run the original evaluation again to create a versioned comparison.');
+      return;
     }
     setIsUploading(true);
     setStatusMessage('Loading GlobalCorp Rectified Clarification Document...');
@@ -359,6 +368,7 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           file_id: data.file_id,
+          previous_evaluation_id: target.evaluation_id,
           tender_id: tenderDocument?.tender_id || 'GEM/2026/B/892100',
           tender_requirements: tenderDocument ? {
             budget_inr: tenderDocument.budget_inr,
@@ -550,7 +560,7 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          bid_id: selectedVendor.file_id,
+          bid_id: selectedVendor.evaluation_id || selectedVendor.file_id,
           clause_id: clauseId,
           clause_name: clause.clause_name,
           original_status: clause.status,
@@ -626,7 +636,7 @@ export default function Home() {
     const v = vendor || selectedVendor;
     if (!v) return;
     try {
-      const resetRes = await fetch(`${getBackendUrl()}/audit/overrides/reset/${encodeURIComponent(v.file_id)}`, { method: 'POST' });
+      const resetRes = await fetch(`${getBackendUrl()}/audit/overrides/reset/${encodeURIComponent(v.evaluation_id || v.file_id)}`, { method: 'POST' });
       const resetData = await resetRes.json().catch(() => ({}));
       setOfficerOverrides((prev) => {
         const next = { ...prev };
@@ -701,13 +711,13 @@ export default function Home() {
   // 7. Interactive Re-evaluation of a Vendor with Rectification File
   const handleSelectVendorForReEval = (vendor) => {
     setReEvalSelectedVendor(vendor);
-    setReEvalPreviousResult(vendor);
     setReEvalResult(null);
     setCurrentScreen('re-evaluation');
   };
 
   const handleUploadRectificationFile = async (file) => {
     if (!file) return;
+    if (!reEvalSelectedVendor?.evaluation_id) { setStatusMessage('Run the original evaluation again before uploading its revision.'); return; }
     setIsUploading(true);
     setStatusMessage(`Uploading and auditing rectification file: ${file.name}...`);
     try {
@@ -728,6 +738,7 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
         file_id: fileId,
+        previous_evaluation_id: reEvalSelectedVendor.evaluation_id,
         tender_id: tenderDocument?.tender_id || 'GEM/2026/B/892100',
         tender_requirements: tenderDocument ? {
           budget_inr: tenderDocument.budget_inr,
@@ -740,7 +751,7 @@ export default function Home() {
       }),
       });
 
-      if (!auditRes.ok) throw new Error('Audit on rectification file failed');
+      if (!auditRes.ok) { const failure = await auditRes.json(); throw new Error(typeof failure.detail === 'string' ? failure.detail : 'Audit on rectification file failed'); }
       const auditData = await auditRes.json();
       const newResult = auditData.results;
       newResult.file_id = fileId;
@@ -768,12 +779,15 @@ export default function Home() {
 
   // Handle PDF Download with Officer Credentials Check
   const handleDownloadPdf = (bidId) => {
+    const record = [reEvalResult, selectedVendor, ...bids, ...shortlistedVendors].find(v => v && (v.file_id === bidId || v.evaluation_id === bidId));
+    bidId = record?.evaluation_id || bidId;
+    if (!bidId) { setStatusMessage('Select an evaluated vendor before exporting.'); return; }
     if (!officerName.trim() || !officerDesignation.trim()) {
       setPendingPdfDownloadBidId(bidId);
       setSettingsNotice('Please enter your Officer Full Name and Designation in Officer Profile before generating the prototype procurement review report.');
       setCurrentScreen('settings');
     } else {
-      const url = `${getBackendUrl()}/audit/report/pdf/${bidId}?officer_name=${encodeURIComponent(officerName)}&officer_designation=${encodeURIComponent(officerDesignation)}`;
+      const url = `${getBackendUrl()}/audit/report/pdf/${encodeURIComponent(bidId)}?officer_name=${encodeURIComponent(officerName)}&officer_designation=${encodeURIComponent(officerDesignation)}`;
       window.open(url, '_blank');
     }
   };
@@ -790,7 +804,7 @@ export default function Home() {
     alert('Officer profile details saved for this session. Prototype reports include a manual sign-off box. This is not authenticated login.');
     setSettingsNotice('');
     if (pendingPdfDownloadBidId) {
-      const url = `${getBackendUrl()}/audit/report/pdf/${pendingPdfDownloadBidId}?officer_name=${encodeURIComponent(officerName)}&officer_designation=${encodeURIComponent(officerDesignation)}`;
+      const url = `${getBackendUrl()}/audit/report/pdf/${encodeURIComponent(pendingPdfDownloadBidId)}?officer_name=${encodeURIComponent(officerName)}&officer_designation=${encodeURIComponent(officerDesignation)}`;
       window.open(url, '_blank');
       setPendingPdfDownloadBidId(null);
     }
@@ -1594,7 +1608,7 @@ export default function Home() {
                 </p>
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button className="btn btn-navy" onClick={() => handleDownloadPdf(bestValueBid?.file_id || selectedVendor?.file_id || bids[0]?.file_id)} disabled={bids.length === 0}>
+                <button className="btn btn-navy" onClick={() => handleDownloadPdf(bestValueBid?.evaluation_id || bestValueBid?.file_id || selectedVendor?.evaluation_id || selectedVendor?.file_id || bids[0]?.evaluation_id || bids[0]?.file_id)} disabled={bids.length === 0}>
                   Download Audit Result (PDF)
                 </button>
                 <button
@@ -1812,7 +1826,7 @@ export default function Home() {
                                 <button
                                   className="btn btn-navy"
                                   style={{ padding: '4px 8px', fontSize: '11.5px' }}
-                                  onClick={() => handleDownloadPdf(bid?.file_id)}
+                                  onClick={() => handleDownloadPdf(bid?.evaluation_id || bid?.file_id)}
                                 >
                                   PDF
                                 </button>
@@ -1859,7 +1873,7 @@ export default function Home() {
                 >
                   {shortlistedVendors.some((v) => v.file_id === selectedVendor.file_id) ? '✓ Shortlisted' : '☆ Shortlist Vendor'}
                 </button>
-                <button className="btn btn-navy" onClick={() => handleDownloadPdf(selectedVendor.file_id)}>
+                <button className="btn btn-navy" onClick={() => handleDownloadPdf(selectedVendor.evaluation_id || selectedVendor.file_id)}>
                   Download Procurement Review Report
                 </button>
               </div>
@@ -1987,6 +2001,8 @@ export default function Home() {
               </div>
             )}
 
+            <SubmissionChecklist key={selectedVendor.evaluation_id || selectedVendor.file_id} backendUrl={getBackendUrl()} vendor={selectedVendor} />
+
             {/* 2-Column Requirement Checks + Evidence Viewer & Override Layout */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
 
@@ -2070,8 +2086,13 @@ export default function Home() {
                         )}
                       </div>
 
+                      <SourceEvidencePanel
+                        key={JSON.stringify([selectedVendor.evaluation_id || selectedVendor.file_id, selectedEvidenceClause.clause_id, selectedEvidenceClause.status])}
+                        backendUrl={getBackendUrl()} vendor={selectedVendor} clause={selectedEvidenceClause}
+                      />
+
                       <AIReviewPanel
-                        key={JSON.stringify([selectedVendor.file_id, selectedVendor.file_info?.source_sha256, selectedVendor.tender_id, selectedVendor.tender_requirements, selectedEvidenceClause])}
+                        key={JSON.stringify([selectedVendor.evaluation_id || selectedVendor.file_id, selectedVendor.file_info?.source_sha256, selectedVendor.tender_id, selectedVendor.tender_requirements, selectedEvidenceClause])}
                         backendUrl={getBackendUrl()}
                         vendor={selectedVendor}
                         clause={selectedEvidenceClause}
@@ -2189,7 +2210,7 @@ export default function Home() {
                 </p>
               </div>
               {reEvalResult && (
-                <button className="btn btn-navy" onClick={() => handleDownloadPdf(reEvalResult.file_id)}>
+                <button className="btn btn-navy" onClick={() => handleDownloadPdf(reEvalResult.evaluation_id || reEvalResult.file_id)}>
                   Download Updated Result (PDF)
                 </button>
               )}
@@ -2330,6 +2351,7 @@ export default function Home() {
             ) : (
               /* PHASE 3: BEFORE / AFTER TRAJECTORY */
               <div>
+                <RevisionComparison backendUrl={getBackendUrl()} result={reEvalResult} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                   <button className="btn btn-secondary" style={{ fontSize: '12px' }} onClick={() => setReEvalSelectedVendor(null)}>
                     &larr; Re-evaluate Another Vendor
@@ -2352,48 +2374,12 @@ export default function Home() {
                     <span className="badge badge-pass">Re-evaluation Result</span>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', alignItems: 'center' }}>
-                    <div style={{ padding: '18px', backgroundColor: reEvalPreviousResult?.is_compliant ? 'var(--info-bg)' : 'var(--critical-bg)', borderRadius: '10px', border: `1px solid ${reEvalPreviousResult?.is_compliant ? 'var(--info-border)' : 'var(--critical-border)'}` }}>
-                      <div style={{ fontSize: '11.5px', fontWeight: 700, color: reEvalPreviousResult?.is_compliant ? 'var(--info)' : 'var(--critical)', textTransform: 'uppercase' }}>
-                        BEFORE (Initial Audit)
-                      </div>
-                      <div style={{ fontSize: '24px', fontWeight: 800, color: reEvalPreviousResult?.is_compliant ? 'var(--navy)' : 'var(--critical)', marginTop: '4px' }}>
-                        {reEvalPreviousResult?.overall_status || 'NOT_EVALUATED'}
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#7F1D1D', marginTop: '6px' }}>
-                        {reEvalPreviousResult?.contradictions_detected && reEvalPreviousResult.contradictions_detected.length > 0 ? (
-                          reEvalPreviousResult.contradictions_detected.map((ct, i) => (
-                            <div key={i}>* {ct.title}</div>
-                          ))
-                        ) : (
-                          <div>* Initial Tender Bid Submission</div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div style={{ textAlign: 'center', fontSize: '20px', fontWeight: 800, color: 'var(--navy)' }}>
-                      &rarr;
-                    </div>
-
-                    <div style={{ padding: '18px', backgroundColor: `var(--${evaluationTone(reEvalResult)}-bg)`, borderRadius: '10px', border: `1px solid var(--${evaluationTone(reEvalResult)}-border)` }}>
-                      <div style={{ fontSize: '11.5px', fontWeight: 700, color: `var(--${evaluationTone(reEvalResult)})`, textTransform: 'uppercase' }}>
-                        AFTER (Rectification Uploaded)
-                      </div>
-                      <div style={{ fontSize: '24px', fontWeight: 800, color: `var(--${evaluationTone(reEvalResult)})`, marginTop: '4px' }}>
-                        {reEvalResult.overall_status || 'NEEDS_REVIEW'}
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#14532D', marginTop: '6px' }}>
-                        {reEvalResult.clause_level_decisions?.map((clause) => (
-                          <div key={clause.clause_id}>{clause.clause_name}: {clause.status}</div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+                  <p className="demo-help">The source-checked table above compares frozen machine evaluations. Officer overrides remain separate review decisions.</p>
                 </div>
 
                 <div className="card">
                   <div className="card-header">
-                    <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--navy)' }}>What Changed &amp; Audit Trail</h3>
+                    <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--navy)' }}>Re-evaluation summary</h3>
                   </div>
                   <div className="card-body" style={{ padding: 0 }}>
                     <table className="table-custom">
@@ -2444,7 +2430,7 @@ export default function Home() {
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
                   className="btn btn-navy"
-                  onClick={() => handleDownloadPdf(shortlistedVendors[0]?.file_id || bids[0]?.file_id)}
+                  onClick={() => handleDownloadPdf(shortlistedVendors[0]?.evaluation_id || shortlistedVendors[0]?.file_id || bids[0]?.evaluation_id || bids[0]?.file_id)}
                   disabled={shortlistedVendors.length === 0}
                 >
                   Download Procurement Review Report (PDF)

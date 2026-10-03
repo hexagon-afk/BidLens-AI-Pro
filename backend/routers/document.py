@@ -36,10 +36,12 @@ ALLOWED_EXTENSIONS = {
 }
 
 
-def register_tender_criteria(tender_data: dict):
-    from routers.audit import ACTIVE_TENDER_CRITERIA, ACTIVE_TENDER_EVIDENCE, TenderRequirements
+def register_tender_criteria(tender_data: dict, source_path=None):
+    from routers.audit import ACTIVE_TENDER_CRITERIA, ACTIVE_TENDER_EVIDENCE, ACTIVE_TENDER_SOURCE_PATHS, TenderRequirements
     tender_id = tender_data.get("tender_id")
     if tender_id:
+        if source_path:
+            ACTIVE_TENDER_SOURCE_PATHS[tender_id] = source_path
         ACTIVE_TENDER_CRITERIA[tender_id] = TenderRequirements(
             budget_inr=tender_data.get("budget_inr"), min_turnover_cr=tender_data.get("min_turnover_cr"),
             emd_required_inr=tender_data.get("emd_inr"), min_local_content_pct=tender_data.get("min_local_content_pct"),
@@ -102,7 +104,7 @@ async def upload_tender_rfp(file: UploadFile = File(...)):
     tender_data = extract_tender_rfp_data(save_path)
     tender_data["sha256"] = sha256_hash
     tender_data["tender_file_id"] = file_id
-    register_tender_criteria(tender_data)
+    register_tender_criteria(tender_data, save_path)
 
     return {
         "status": "SUCCESS",
@@ -125,7 +127,7 @@ def get_sample_tender_rfp():
     tender_data = extract_tender_rfp_data(save_path)
     tender_data["sha256"] = hash_file(save_path)
     tender_data["tender_file_id"] = file_id
-    register_tender_criteria(tender_data)
+    register_tender_criteria(tender_data, save_path)
     
     return {
         "status": "SUCCESS",

@@ -15,7 +15,7 @@ def isolated_audit_storage(tmp_path, monkeypatch):
     for module in (audit, document, review):
         monkeypatch.setattr(module, "UPLOAD_DIR", str(uploads))
     monkeypatch.setattr(review, "LOG_FILE", str(tmp_path / "review.json"))
-    for cache in (audit.AUDIT_CACHE, audit.AUDIT_OVERRIDES, audit.ACTIVE_TENDER_CRITERIA, audit.ACTIVE_TENDER_EVIDENCE):
+    for cache in (audit.AUDIT_CACHE, audit.AUDIT_OVERRIDES, audit.ACTIVE_TENDER_CRITERIA, audit.ACTIVE_TENDER_EVIDENCE, audit.ACTIVE_TENDER_SOURCE_PATHS, audit.AUDIT_REVISIONS, audit.AUDIT_SOURCE_REFS, audit.AUDIT_CHECKLISTS):
         cache.clear()
     audit.AUDIT_OVERRIDE_EVENTS.clear()
     audit.AI_REVIEWS_IN_FLIGHT.clear()

@@ -308,3 +308,19 @@ body {
   max-height: 90vh;
   overflow-y: auto;
 }
+
+/* Source inspection and revision review use the existing procurement portal tokens. */
+.source-evidence-panel { padding: 14px; border: 1px solid var(--border); border-radius: 9px; margin-bottom: 16px; background: #fafafa; }
+.demo-section-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 13px; color: var(--navy); }
+.demo-help { font-size: 11.5px; line-height: 1.6; color: var(--text-muted); margin: 7px 0; }
+.demo-error { font-size: 12px; line-height: 1.6; color: var(--critical); }
+.demo-source-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr)); gap: 12px; margin-top: 12px; }
+.demo-source-card { padding: 12px; border: 1px solid var(--border); border-radius: 7px; background: #fff; font-size: 12px; min-width: 0; }
+.demo-passage { border-top: 1px solid var(--border); padding-top: 8px; margin-top: 9px; font-size: 12px; line-height: 1.6; }
+.demo-passage a { color: var(--navy); text-decoration: underline; font-weight: 600; }
+.demo-checklist-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px 0; border-top: 1px solid var(--border); font-size: 12px; }
+.demo-checklist-row .btn { font-size: 11px; padding: 6px 9px; }
+.demo-comparison-table { width: 100%; min-width: 550px; border-collapse: collapse; font-size: 12px; }
+.demo-comparison-table th, .demo-comparison-table td { padding: 11px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.demo-comparison-table th { background: var(--bg-sand); color: var(--navy); }
+.demo-comparison-table td:first-child { width: 45%; }
