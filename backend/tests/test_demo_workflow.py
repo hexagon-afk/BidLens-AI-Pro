@@ -230,3 +230,18 @@ def test_unreadable_bid_still_has_an_original_document_link(client, monkeypatch)
     assert bid['original_available'] is True and bid['passages'] == []
     assert evidence['current_status'] == 'NEEDS_REVIEW'
     assert client.get(f"/audit/source/{result['evaluation_id']}/BID").content == content
+
+
+def test_pdf_keeps_officer_acknowledgement_on_one_page(client):
+    result = start(client, 'Bid_MegaTech_BigBrand.pdf')
+    endpoint = f"/audit/checklist/{result['evaluation_id']}"
+    assert client.post(endpoint, json={'items': [
+        {'item_id': str(i), 'name': f'Required document {i}'} for i in range(20)]}).status_code == 200
+    response = client.get(f"/audit/report/pdf/{result['evaluation_id']}")
+    assert response.status_code == 200
+    with pymupdf.open(stream=response.content, filetype='pdf') as pdf:
+        pages = [page.get_text() for page in pdf]
+    acknowledgement = [text for text in pages if 'Optional Manual Sign-Off:' in text]
+    assert len(acknowledgement) == 1
+    assert 'Source SHA-256:' in acknowledgement[0]
+    assert 'Procurement Officer Evaluation & Manual Physical Sign-Off' in acknowledgement[0]

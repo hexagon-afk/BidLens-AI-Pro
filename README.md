@@ -6,7 +6,7 @@
 
 ---
 
-[![Tests: 124 Passed](https://img.shields.io/badge/Tests-124%20Passed-brightgreen.svg?logo=pytest)](backend/tests/)
+[![Tests: 125 Passed](https://img.shields.io/badge/Tests-125%20Passed-brightgreen.svg?logo=pytest)](backend/tests/)
 [![Python: 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg?logo=python)](https://www.python.org/)
 [![FastAPI: 0.111.0](https://img.shields.io/badge/FastAPI-0.111.0-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com)
 [![Next.js: 15.5.27](https://img.shields.io/badge/Next.js-15.5.27-black.svg?logo=next.js)](https://nextjs.org/)
@@ -153,7 +153,7 @@ Tested against the master tender **`Tender_RFP_GeM_Computers.pdf`** (Budget: ₹
 
 ## 🧪 Test Suite & Architectural Gates
 
-The test suite contains **124 automated tests** executing in **21.02 seconds** in this local run across unit, integration, and security layers:
+The test suite contains **125 automated tests** executing in **20.60 seconds** in this local run across unit, integration, and security layers:
 
 ```bash
 # Run the complete test suite from the project root
@@ -161,7 +161,7 @@ The test suite contains **124 automated tests** executing in **21.02 seconds** i
 ```
 
 ```text
-======================= 124 passed, 1 warning in 21.02s =======================
+======================= 125 passed, 1 warning in 20.60s =======================
 ```
 
 ### Key Verified Quality Gates:
@@ -186,7 +186,7 @@ The test suite contains **124 automated tests** executing in **21.02 seconds** i
 - **Linked re-evaluation:** unique evaluation IDs and frozen machine results in memory; the backend rejects a comparison against different tender criteria/source versions. Officer decisions remain separate.
 - **Receipt checklist:** up to 20 officer-defined requirements. MISSING, RECEIVED_UNVERIFIED and NEEDS_INSPECTION track receipt/readability; attachments do not get merged into the rule audit.
 - **Active integrity guards:** changed/missing source bytes block inspection, comparison, officer decisions, model review and export with HTTP 409. Local digests/events are not tamper-proof or document authentication.
-- **Validation:** 124 backend tests and the production frontend build passed. The local six-document rehearsal returned 1 compliant, 4 under review and 1 non-compliant; the GlobalCorp revision changed five statuses. No model call was made for this upgrade.
+- **Validation:** 125 backend tests and the production frontend build passed. The local six-document rehearsal returned 1 compliant, 4 under review and 1 non-compliant; the GlobalCorp revision changed five statuses. No model call was made for this upgrade.
 
 ## 📡 API Reference
 

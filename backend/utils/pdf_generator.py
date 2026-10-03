@@ -352,6 +352,7 @@ def generate_certified_audit_pdf(
         story.append(Spacer(1, 2))
 
     # ── 7. Officer Sign-Off Block (Manual Physical Sign-Off) ───
+    sign_off_start = len(story)
     story.append(Paragraph("Procurement Officer Evaluation & Manual Physical Sign-Off", h1_style))
 
     sign_off_data = [
@@ -394,6 +395,7 @@ def generate_certified_audit_pdf(
         ('VALIGN', (0,0), (-1,-1), 'TOP'),
     ]))
     story.append(t_sign)
+    story[sign_off_start:] = [KeepTogether(story[sign_off_start:])]
 
     # ── 8. SUPERVISORY OVERRIDE & STATUTORY JUSTIFICATION TRAIL (Seamless Flow) ──
     # Placed directly following the sign-off block without artificial page breaks!
