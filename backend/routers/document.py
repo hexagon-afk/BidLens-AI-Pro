@@ -31,9 +31,21 @@ SAMPLE_BIDS_DIR = get_sample_dir()
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 ALLOWED_EXTENSIONS = {
-    ".pdf", ".docx", ".doc", ".xlsx", ".xls", ".csv",
+    ".pdf", ".docx", ".xlsx", ".csv",
     ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"
 }
+
+
+def register_tender_criteria(tender_data: dict):
+    from routers.audit import ACTIVE_TENDER_CRITERIA, ACTIVE_TENDER_EVIDENCE, TenderRequirements
+    tender_id = tender_data.get("tender_id")
+    if tender_id:
+        ACTIVE_TENDER_CRITERIA[tender_id] = TenderRequirements(
+            budget_inr=tender_data.get("budget_inr"), min_turnover_cr=tender_data.get("min_turnover_cr"),
+            emd_required_inr=tender_data.get("emd_inr"), min_local_content_pct=tender_data.get("min_local_content_pct"),
+            min_warranty_years=tender_data.get("min_warranty_years"), required_service_type=tender_data.get("required_service_type")
+        ).model_dump()
+        ACTIVE_TENDER_EVIDENCE[tender_id] = {k: tender_data.get(k) for k in ("raw_text", "filename", "sha256", "extraction_complete")}
 
 
 @router.post("/upload")
@@ -42,15 +54,16 @@ async def upload_document(file: UploadFile = File(...)):
     Upload a vendor bid document (PDF, Word .docx, Excel .xlsx, CSV, or Image).
     Returns file_id, SHA-256 digital fingerprint, and extracted metadata summary.
     """
-    ext = os.path.splitext(file.filename)[1].lower()
+    filename = os.path.basename((file.filename or "").replace("\\", "/"))
+    ext = os.path.splitext(filename)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported format '{ext}'. Allowed formats: PDF, Word (.docx, .doc), Excel (.xlsx, .xls), Images (.png, .jpg), CSV."
+            detail=f"Unsupported format '{ext}'. Allowed formats: PDF, Word (.docx), Excel (.xlsx), Images (.png, .jpg), CSV."
         )
 
     file_id = str(uuid.uuid4())
-    save_path = os.path.join(UPLOAD_DIR, f"{file_id}_{file.filename}")
+    save_path = os.path.join(UPLOAD_DIR, f"{file_id}_{filename}")
 
     with open(save_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
@@ -60,7 +73,7 @@ async def upload_document(file: UploadFile = File(...)):
 
     return {
         "file_id": file_id,
-        "filename": file.filename,
+        "filename": filename,
         "file_type": extracted["file_type"],
         "sha256": sha256_hash,
         "status": "uploaded",
@@ -74,12 +87,13 @@ async def upload_tender_rfp(file: UploadFile = File(...)):
     """
     Upload a Tender RFP Document to extract procurement terms, budget, EMD, turnover, and Make in India thresholds.
     """
-    ext = os.path.splitext(file.filename)[1].lower()
+    filename = os.path.basename((file.filename or "").replace("\\", "/"))
+    ext = os.path.splitext(filename)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"Unsupported format '{ext}'.")
 
     file_id = str(uuid.uuid4())
-    save_path = os.path.join(UPLOAD_DIR, f"TENDER_{file_id}_{file.filename}")
+    save_path = os.path.join(UPLOAD_DIR, f"TENDER_{file_id}_{filename}")
 
     with open(save_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
@@ -88,6 +102,7 @@ async def upload_tender_rfp(file: UploadFile = File(...)):
     tender_data = extract_tender_rfp_data(save_path)
     tender_data["sha256"] = sha256_hash
     tender_data["tender_file_id"] = file_id
+    register_tender_criteria(tender_data)
 
     return {
         "status": "SUCCESS",
@@ -110,6 +125,7 @@ def get_sample_tender_rfp():
     tender_data = extract_tender_rfp_data(save_path)
     tender_data["sha256"] = hash_file(save_path)
     tender_data["tender_file_id"] = file_id
+    register_tender_criteria(tender_data)
     
     return {
         "status": "SUCCESS",

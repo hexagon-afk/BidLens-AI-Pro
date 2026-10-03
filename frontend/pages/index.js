@@ -1,19 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
-import { SAMPLE_TENDER_DATA, SAMPLE_VENDOR_LIST, SAMPLE_AUDIT_RESULTS, SAMPLE_RECTIFIED_RESULT } from '../utils/sihSampleCache';
+import AIReviewPanel from '../components/AIReviewPanel';
 
 const getBackendUrl = () => {
   if (typeof window !== 'undefined') {
     const saved = localStorage.getItem('bidlens_backend_url');
     if (saved && saved.trim()) return saved.trim().replace(/\/+$/, '');
   }
-  return (process.env.NEXT_PUBLIC_BACKEND_URL || 'https://bidlens-ai-pro.onrender.com').trim().replace(/\/+$/, '');
+  const localDefault = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname) ? 'http://127.0.0.1:8000' : 'https://bidlens-ai-pro.onrender.com';
+  return (process.env.NEXT_PUBLIC_BACKEND_URL || localDefault).trim().replace(/\/+$/, '');
 };
+
+const formatRequirement = (value) => value == null ? 'Unspecified — officer review required' : Number(value).toLocaleString('en-IN');
+
+// These are outcomes of implemented checks, not formal procurement decisions.
+const evaluationStatus = (bid) => bid?.overall_status || (bid?.is_compliant === true ? 'COMPLIANT' : 'NEEDS_REVIEW');
+const evaluationLabel = (bid) => ({ COMPLIANT: 'Meets evaluated checks', NON_COMPLIANT: 'Non-compliant on evaluated checks', NEEDS_REVIEW: 'Needs review' }[evaluationStatus(bid)] || 'Not evaluated');
+const evaluationTone = (bid) => evaluationStatus(bid) === 'COMPLIANT' ? 'success' : evaluationStatus(bid) === 'NON_COMPLIANT' ? 'critical' : 'warning';
+const evaluationBadge = (bid) => evaluationStatus(bid) === 'COMPLIANT' ? 'badge-pass' : evaluationStatus(bid) === 'NON_COMPLIANT' ? 'badge-fail' : 'badge-warning';
 
 export default function Home() {
   // Navigation State
   const [currentScreen, setCurrentScreen] = useState('dashboard'); // 'dashboard', 'new-evaluation', 'evaluations', 'vendor-detail', 're-evaluation', 'shortlist', 'rules', 'settings'
-  
+
   // Data State - Clean initial states (zero preloading)
   const [tenderDocument, setTenderDocument] = useState(null);
   const [customRulesDocument, setCustomRulesDocument] = useState(null);
@@ -36,7 +45,7 @@ export default function Home() {
   const [reEvalPreviousResult, setReEvalPreviousResult] = useState(null);
   const [reEvalResult, setReEvalResult] = useState(null);
   const reEvalFileInputRef = useRef(null);
-  
+
   // Search State
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -120,7 +129,7 @@ export default function Home() {
     setIsUploading(true);
     const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
     setStatusMessage(`Uploading and parsing Tender RFP: ${file.name} (${sizeMb} MB)...`);
-    
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60000);
 
@@ -172,10 +181,7 @@ export default function Home() {
       setStatusMessage('Sample Tender RFP (GEM/2026/B/892100) loaded.');
       setTimeout(() => setStatusMessage(''), 3500);
     } catch (err) {
-      console.warn('Backend sample fetch fallback to sovereign cache:', err);
-      setTenderDocument(SAMPLE_TENDER_DATA);
-      setStatusMessage('Sample Tender RFP (GEM/2026/B/892100) loaded.');
-      setTimeout(() => setStatusMessage(''), 3500);
+      setStatusMessage(`Error loading sample tender: ${err.message}. Please retry.`);
     } finally {
       setIsUploading(false);
     }
@@ -204,10 +210,7 @@ export default function Home() {
       setStatusMessage(`Loaded ${sampleItems.length} sample vendor proposals.`);
       setTimeout(() => setStatusMessage(''), 3500);
     } catch (err) {
-      console.warn('Backend sample bids fallback to sovereign cache:', err);
-      setAddedVendors(SAMPLE_VENDOR_LIST);
-      setStatusMessage(`Loaded ${SAMPLE_VENDOR_LIST.length} sample vendor proposals.`);
-      setTimeout(() => setStatusMessage(''), 3500);
+      setStatusMessage(`Error loading sample bids: ${err.message}. Please retry.`);
     } finally {
       setIsUploading(false);
     }
@@ -239,21 +242,7 @@ export default function Home() {
       setStatusMessage(`Loaded sample: ${newVendorItem.vendor_name}`);
       setTimeout(() => setStatusMessage(''), 3000);
     } catch (err) {
-      console.warn('Backend single sample load fallback to sovereign cache:', err);
-      const match = SAMPLE_VENDOR_LIST.find((v) => v.filename === sampleFilename) || {
-        file_id: `sample_${sampleFilename.replace('.', '_').toLowerCase()}`,
-        filename: sampleFilename,
-        file_type: 'PDF',
-        vendor_name: sampleFilename.replace('.pdf', ''),
-        quote_inr: 4500000,
-        status: 'Ready for Audit'
-      };
-      setAddedVendors((prev) => {
-        const filtered = prev.filter((v) => v.file_id !== match.file_id);
-        return [...filtered, match];
-      });
-      setStatusMessage(`Loaded sample: ${match.vendor_name}`);
-      setTimeout(() => setStatusMessage(''), 3000);
+      setStatusMessage(`Error loading sample: ${err.message}. Please retry.`);
     } finally {
       setIsUploading(false);
     }
@@ -265,7 +254,7 @@ export default function Home() {
     setStatusMessage('1-Click Audit: Loading RFP and all sample vendor bids...');
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 14000);
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
 
       // 1. Load Tender RFP
       const tRes = await fetch(`${getBackendUrl()}/document/tender/sample`, { signal: controller.signal });
@@ -304,21 +293,21 @@ export default function Home() {
                 emd_required_inr: tData.tender_data.emd_inr,
                 min_local_content_pct: tData.tender_data.min_local_content_pct,
                 min_warranty_years: tData.tender_data.min_warranty_years,
+                required_service_type: tData.tender_data.required_service_type,
               }
             }),
             signal: controller.signal
           });
-          if (auditRes.ok) {
-            const auditData = await auditRes.json();
-            if (auditData.results) {
-              auditData.results.file_id = vendor.file_id;
-              evaluatedBids.push(auditData.results);
-            }
+          if (!auditRes.ok) {
+            const error = await auditRes.json().catch(() => ({}));
+            throw new Error(error.detail || `Audit failed for ${vendor.filename} (${auditRes.status})`);
           }
+          const auditData = await auditRes.json();
+          if (!auditData.results) throw new Error(`Missing audit result for ${vendor.filename}`);
+          auditData.results.file_id = vendor.file_id;
+          evaluatedBids.push(auditData.results);
         } catch (singleAuditErr) {
-          console.warn(`Vendor audit failed for ${vendor.filename}, checking fallback cache:`, singleAuditErr);
-          const cachedMatch = SAMPLE_AUDIT_RESULTS.find((b) => b.file_id === vendor.file_id);
-          if (cachedMatch) evaluatedBids.push(cachedMatch);
+          throw new Error(`${vendor.filename}: ${singleAuditErr.message}`);
         }
       }
       clearTimeout(timeoutId);
@@ -336,17 +325,11 @@ export default function Home() {
         throw new Error('No vendor audits evaluated.');
       }
     } catch (err) {
-      console.warn('1-Click Audit encountered network delay, activating sovereign fallback cache:', err);
-      setTenderDocument(SAMPLE_TENDER_DATA);
-      setAddedVendors(SAMPLE_VENDOR_LIST);
-      setBids(SAMPLE_AUDIT_RESULTS);
-      setSelectedVendor(SAMPLE_AUDIT_RESULTS[0]);
-      setSelectedEvidenceClause(SAMPLE_AUDIT_RESULTS[0].clause_level_decisions ? SAMPLE_AUDIT_RESULTS[0].clause_level_decisions[0] : null);
-      const compliantOnes = SAMPLE_AUDIT_RESULTS.filter((b) => b?.is_compliant);
-      setShortlistedVendors(compliantOnes);
-      setStatusMessage('Demo Mode: Network offline, displaying precomputed sample proposal data.');
-      setTimeout(() => setStatusMessage(''), 3500);
-      setCurrentScreen('evaluations');
+      setBids([]);
+      setShortlistedVendors([]);
+      setSelectedVendor(null);
+      setSelectedEvidenceClause(null);
+      setStatusMessage(`Audit did not complete: ${err.message}. No substitute results were generated. Please retry.`);
     } finally {
       setIsUploading(false);
     }
@@ -356,7 +339,7 @@ export default function Home() {
   const handleQuickLoadRectification = async () => {
     let target = reEvalSelectedVendor;
     if (!target) {
-      target = bids.find((b) => b?.file_info?.vendor_name?.toLowerCase().includes('globalcorp')) || bids.find((b) => !b?.is_compliant) || bids[0];
+      target = bids.find((b) => b?.file_info?.vendor_name?.toLowerCase().includes('globalcorp')) || bids.find((b) => evaluationStatus(b) === 'NON_COMPLIANT') || bids[0];
       if (target) {
         setReEvalSelectedVendor(target);
         setReEvalPreviousResult(target);
@@ -366,7 +349,7 @@ export default function Home() {
     setStatusMessage('Loading GlobalCorp Rectified Clarification Document...');
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
       const res = await fetch(`${getBackendUrl()}/document/sample/load/Bid_GlobalCorp_Rectified_ReEvaluation.pdf`, { method: 'POST', signal: controller.signal });
       if (!res.ok) throw new Error('Failed to load rectified sample file');
       const data = await res.json();
@@ -383,6 +366,7 @@ export default function Home() {
             emd_required_inr: tenderDocument.emd_inr,
             min_local_content_pct: tenderDocument.min_local_content_pct,
             min_warranty_years: tenderDocument.min_warranty_years,
+            required_service_type: tenderDocument.required_service_type,
           } : null
         }),
         signal: controller.signal
@@ -398,10 +382,8 @@ export default function Home() {
         setTimeout(() => setStatusMessage(''), 4000);
       }
     } catch (err) {
-      console.warn('Re-evaluation fetch error, loading sovereign fallback cache:', err);
-      setReEvalResult(SAMPLE_RECTIFIED_RESULT);
-      setStatusMessage('Rectified clarification audited successfully! Inspect before-and-after comparison.');
-      setTimeout(() => setStatusMessage(''), 4000);
+      setReEvalResult(null);
+      setStatusMessage(`Re-evaluation failed: ${err.message}. Please retry.`);
     } finally {
       setIsUploading(false);
     }
@@ -415,14 +397,14 @@ export default function Home() {
       uploadedAt: new Date().toLocaleTimeString(),
       isRoadmap: true,
       rulesList: [
-        { id: 'CUSTOM-01', name: 'Uploaded Statutory Framework (' + file.name + ') [Phase 2 Roadmap]', text: 'Uploaded policy document archived. Prototype enforces active statutory baseline (GFR 2017 & MII Order 2017).' },
+        { id: 'CUSTOM-01', name: 'Uploaded Statutory Framework (' + file.name + ') [Phase 2 Roadmap]', text: 'Policy filename selected locally. Policy import and compilation are not implemented. Prototype applies its existing checks (GFR 2017 & MII Order 2017).' },
         { id: 'GFR-149', name: 'GFR 2017 Rule 149 — GeM Portal & Valid GSTIN Verification', text: 'Mandates active GSTIN verification against GSTN common portal with Modulus-36 checksum.' },
-        { id: 'GFR-160', name: 'GFR 2017 Rule 160 & MSME Order 2012 — Prior Turnover Exemption', text: 'Statutory waiver of turnover criteria strictly for registered Udyam MSEs.' },
+        { id: 'GFR-160', name: 'Tender Financial Criteria / GFR 2017 Rule 173 — Exemption Review', text: 'Evaluate tender turnover criteria; claimed exemptions require officer verification.' },
         { id: 'GFR-170', name: 'GFR 2017 Rule 170 — Earnest Money Deposit (EMD) Guarantee', text: 'Mandatory EMD Bank Guarantee with verified MSE waiver.' },
         { id: 'MII-2017', name: 'Make in India Order 2017 — Minimum Local Content Preference', text: 'Requires >= 50% local domestic value addition for Class-1 suppliers.' }
       ]
     });
-    setStatusMessage(`Uploaded custom policy document '${file.name}' acknowledged (Custom dynamic rule compiler is scheduled for Phase 2; running on active GFR 2017 & MII 2017 baseline).`);
+    setStatusMessage(`Custom policy filename '${file.name}' selected locally; file contents were not imported (Custom dynamic rule compiler is scheduled for Phase 2; running on active GFR 2017 & MII 2017 baseline).`);
     setTimeout(() => setStatusMessage(''), 5000);
   };
 
@@ -515,24 +497,26 @@ export default function Home() {
             emd_required_inr: tenderDocument.emd_inr,
             min_local_content_pct: tenderDocument.min_local_content_pct,
             min_warranty_years: tenderDocument.min_warranty_years,
+            required_service_type: tenderDocument.required_service_type,
           }
         }),
         });
 
-        if (auditRes.ok) {
-          const auditData = await auditRes.json();
-          if (auditData.results) {
-            auditData.results.file_id = vendor.file_id;
-            evaluatedBids.push(auditData.results);
-          }
+        if (!auditRes.ok) {
+          const error = await auditRes.json().catch(() => ({}));
+          throw new Error(error.detail || `Audit failed for ${vendor.filename} (${auditRes.status})`);
         }
+        const auditData = await auditRes.json();
+        if (!auditData.results) throw new Error(`Missing audit result for ${vendor.filename}`);
+        auditData.results.file_id = vendor.file_id;
+        evaluatedBids.push(auditData.results);
       }
 
       if (evaluatedBids.length > 0) {
         setBids(evaluatedBids);
         setSelectedVendor(evaluatedBids[0]);
         setSelectedEvidenceClause(evaluatedBids[0].clause_level_decisions ? evaluatedBids[0].clause_level_decisions[0] : null);
-        
+
         // Auto shortlist compliant vendors
         const compliantOnes = evaluatedBids.filter((b) => b?.is_compliant);
         setShortlistedVendors(compliantOnes);
@@ -631,7 +615,7 @@ export default function Home() {
         setBids((prev) => prev.map((b) => (b.file_id === selectedVendor.file_id ? updatedVendor : b)));
       }
 
-      alert(`Decision updated to ${newStatus} with recorded justification! This has been logged and will appear on Page 2 of the official audit PDF.`);
+      alert(`Decision updated to ${newStatus} with recorded justification! This has been logged and will appear in the supervisory log in the exported audit PDF.`);
     } catch (e) {
       alert(`Error saving decision override: ${e.message}`);
     }
@@ -677,6 +661,7 @@ export default function Home() {
               emd_required_inr: tenderDocument.emd_inr,
               min_local_content_pct: tenderDocument.min_local_content_pct,
               min_warranty_years: tenderDocument.min_warranty_years,
+            required_service_type: tenderDocument.required_service_type,
             } : null
           }),
         });
@@ -750,6 +735,7 @@ export default function Home() {
           emd_required_inr: tenderDocument.emd_inr,
           min_local_content_pct: tenderDocument.min_local_content_pct,
           min_warranty_years: tenderDocument.min_warranty_years,
+            required_service_type: tenderDocument.required_service_type,
         } : null
       }),
       });
@@ -784,7 +770,7 @@ export default function Home() {
   const handleDownloadPdf = (bidId) => {
     if (!officerName.trim() || !officerDesignation.trim()) {
       setPendingPdfDownloadBidId(bidId);
-      setSettingsNotice('Please enter your Officer Full Name and Designation in Officer Profile before generating the official PDF dossier.');
+      setSettingsNotice('Please enter your Officer Full Name and Designation in Officer Profile before generating the prototype procurement review report.');
       setCurrentScreen('settings');
     } else {
       const url = `${getBackendUrl()}/audit/report/pdf/${bidId}?officer_name=${encodeURIComponent(officerName)}&officer_designation=${encodeURIComponent(officerDesignation)}`;
@@ -801,7 +787,7 @@ export default function Home() {
       alert('Please enter your Official Designation / Committee.');
       return;
     }
-    alert('Officer credentials saved successfully! Official PDF dossiers will be generated with manual physical sign-off boxes.');
+    alert('Officer profile details saved for this session. Prototype reports include a manual sign-off box. This is not authenticated login.');
     setSettingsNotice('');
     if (pendingPdfDownloadBidId) {
       const url = `${getBackendUrl()}/audit/report/pdf/${pendingPdfDownloadBidId}?officer_name=${encodeURIComponent(officerName)}&officer_designation=${encodeURIComponent(officerDesignation)}`;
@@ -844,9 +830,9 @@ export default function Home() {
         results.push({
           type: 'VENDOR',
           title: vName,
-          subtitle: `File: ${fName} | GSTIN: ${gstin || 'N/A'} | Status: ${b.is_compliant ? 'Compliant' : 'Disqualified'}`,
-          badge: b.is_compliant ? 'COMPLIANT' : 'CRITICAL RISK',
-          badgeClass: b.is_compliant ? 'badge-pass' : 'badge-fail',
+          subtitle: `File: ${fName} | GSTIN: ${gstin || 'N/A'} | Status: ${evaluationLabel(b)}`,
+          badge: evaluationLabel(b),
+          badgeClass: evaluationBadge(b),
           action: () => {
             setSelectedVendor(b);
             setSelectedEvidenceClause(b?.clause_level_decisions ? b.clause_level_decisions[0] : null);
@@ -858,9 +844,9 @@ export default function Home() {
     });
 
     const statutoryRules = [
-      { id: 'GFR-149', name: 'GFR Rule 149 - GeM Procurement & GSTIN Validity', text: 'Mandates active GSTIN registration verified with GSTN portal.' },
-      { id: 'GFR-160', name: 'GFR Rule 160 & MSME Order 2012 - Turnover Waiver', text: 'Statutory exemption from prior turnover criteria for Udyam MSEs.' },
-      { id: 'GFR-170', name: 'GFR Rule 170 - Earnest Money Deposit (EMD)', text: 'Mandatory 2% EMD guarantee with statutory waiver for MSMEs.' },
+      { id: 'GFR-149', name: 'GFR Rule 149 - GeM Procurement & GSTIN Validity', text: 'Offline GSTIN syntax and checksum checks. Live GSTN registration remains unverified.' },
+      { id: 'GFR-160', name: 'Tender Financial Criteria / GFR 2017 Rule 173 - Exemption Review', text: 'Tender-specific relaxation and exemption eligibility require officer verification.' },
+      { id: 'GFR-170', name: 'GFR Rule 170 - Earnest Money Deposit (EMD)', text: 'EMD is compared with the active tender amount. Claimed exemptions require officer verification.' },
       { id: 'MII-2017', name: 'Make in India Order 2017 - Local Content Preference', text: 'Requires minimum 50% domestic value addition for Class-1 suppliers.' }
     ];
 
@@ -1025,7 +1011,7 @@ export default function Home() {
             </div>
             <div style={{ flex: 1, overflow: 'hidden' }}>
               <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--navy)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {officerName || 'Sign In / Profile'}
+                {officerName || 'Set Officer Profile'}
               </div>
               <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
                 {officerDesignation || 'Click to set officer details'}
@@ -1067,7 +1053,7 @@ export default function Home() {
                 }}
               />
               <svg style={{ position: 'absolute', left: '12px', top: '11px', color: 'var(--text-muted)' }} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              
+
               {searchQuery && (
                 <button
                   onClick={() => {
@@ -1174,7 +1160,7 @@ export default function Home() {
                 {statusMessage}
               </span>
             )}
-            
+
             {/* The '+ New Evaluation' button is HIDDEN only when already on Screen 2 */}
             {currentScreen !== 'new-evaluation' && (
               <button className="btn btn-primary" onClick={() => setCurrentScreen('new-evaluation')}>
@@ -1225,7 +1211,7 @@ export default function Home() {
                 className="card"
                 style={{ padding: '22px 24px', cursor: 'pointer', borderLeft: '4px solid var(--critical)' }}
                 onClick={() => {
-                  const ineligible = bids.find((b) => !b?.is_compliant);
+                  const ineligible = bids.find((b) => evaluationStatus(b) === 'NON_COMPLIANT');
                   if (ineligible) {
                     setSelectedVendor(ineligible);
                     setCurrentScreen('vendor-detail');
@@ -1237,10 +1223,10 @@ export default function Home() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
                     <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      High-Risk / Disqualified Vendors
+                      Non-compliant on evaluated checks
                     </div>
                     <div style={{ fontSize: '36px', fontWeight: 800, color: 'var(--critical)', marginTop: '4px' }}>
-                      {bids.filter((b) => !b?.is_compliant).length}
+                      {bids.filter((b) => evaluationStatus(b) === 'NON_COMPLIANT').length}
                     </div>
                   </div>
                   <div style={{ padding: '10px', backgroundColor: 'var(--critical-bg)', borderRadius: '8px' }}>
@@ -1248,7 +1234,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div style={{ fontSize: '12px', color: 'var(--critical)', marginTop: '8px', fontWeight: 600 }}>
-                  Critical statutory non-compliance or contradictory PANs detected &rarr;
+                  Inspect failed checks and their supporting evidence &rarr;
                 </div>
               </div>
             </div>
@@ -1285,17 +1271,17 @@ export default function Home() {
                       <tr>
                         <td>
                           <div style={{ fontWeight: 700, color: 'var(--navy)' }}>{tenderDocument ? `${tenderDocument.tender_id} — ${tenderDocument.title}` : 'GEM/2026/B/892100 — Workstation Desktops'}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Budget: INR {tenderDocument?.budget_inr ? tenderDocument.budget_inr.toLocaleString() : '50,00,000'} | EMD: INR {tenderDocument?.emd_inr ? tenderDocument.emd_inr.toLocaleString() : '1,00,000'}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Budget: INR {formatRequirement(tenderDocument?.budget_inr)} | EMD: INR {formatRequirement(tenderDocument?.emd_inr)}</div>
                         </td>
                         <td><strong>{bids.length} Vendors</strong></td>
                         <td>
                           <span style={{ fontWeight: 700, color: 'var(--success)' }}>
-                            {bestValueBid?.file_info?.vendor_name ? `${bestValueBid.file_info.vendor_name} (Compliant L1)` : 'Awaiting Audit'}
+                            {bestValueBid?.file_info?.vendor_name ? `${bestValueBid.file_info.vendor_name} (Meets evaluated checks)` : 'Awaiting Audit'}
                           </span>
                         </td>
                         <td>
-                          <span className={`badge ${bids.some((b) => !b?.is_compliant) ? 'badge-fail' : 'badge-pass'}`}>
-                            {bids.some((b) => !b?.is_compliant) ? 'High Risk' : 'Low Risk'}
+                          <span className={`badge ${bids.some((b) => evaluationStatus(b) === 'NON_COMPLIANT') ? 'badge-fail' : bids.some((b) => evaluationStatus(b) === 'NEEDS_REVIEW') ? 'badge-warning' : 'badge-pass'}`}>
+                            {bids.some((b) => evaluationStatus(b) === 'NON_COMPLIANT') ? 'Failed checks' : bids.some((b) => evaluationStatus(b) === 'NEEDS_REVIEW') ? 'Needs review' : 'Meets evaluated checks'}
                           </span>
                         </td>
                         <td><span className="badge badge-pass">Active Evaluation</span></td>
@@ -1329,7 +1315,7 @@ export default function Home() {
                   <div style={{ fontWeight: 700, color: 'var(--navy)', fontSize: '13px' }}>Review Red Flags</div>
                   <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', margin: '4px 0 10px 0' }}>Inspect contradictory PANs and expired GSTIN certificates detected in bids.</div>
                   <button className="btn btn-critical" style={{ fontSize: '11.5px', padding: '5px 12px' }} onClick={() => {
-                    const ineligible = bids.find((b) => !b?.is_compliant);
+                    const ineligible = bids.find((b) => evaluationStatus(b) === 'NON_COMPLIANT');
                     if (ineligible) setSelectedVendor(ineligible);
                     setCurrentScreen('vendor-detail');
                   }}>
@@ -1338,10 +1324,10 @@ export default function Home() {
                 </div>
 
                 <div style={{ padding: '14px', borderRadius: '8px', border: '1px solid var(--border)', backgroundColor: '#FAFAFA' }}>
-                  <div style={{ fontWeight: 700, color: 'var(--navy)', fontSize: '13px' }}>Manage Digital Signature</div>
-                  <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', margin: '4px 0 10px 0' }}>Configure evaluating officer name and upload scanned signature for PDF dossiers.</div>
+                  <div style={{ fontWeight: 700, color: 'var(--navy)', fontSize: '13px' }}>Officer Profile &amp; Manual Sign-Off</div>
+                  <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', margin: '4px 0 10px 0' }}>Set report display details. Sign-off is manual on the printed report.</div>
                   <button className="btn btn-secondary" style={{ fontSize: '11.5px', padding: '5px 12px' }} onClick={() => setCurrentScreen('settings')}>
-                    Signature Settings &rarr;
+                    Officer Profile &rarr;
                   </button>
                 </div>
               </div>
@@ -1361,6 +1347,15 @@ export default function Home() {
               </p>
             </div>
 
+
+            <div style={{ marginBottom: '18px' }}>
+              <button className="btn btn-primary" disabled={isUploading} onClick={handleOneClickCompleteEvaluation}>
+                {isUploading ? 'Evaluation in progress…' : 'Run Complete Sample Demo'}
+              </button>
+              <span style={{ marginLeft: '12px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                Loads the sample tender and evaluates six sample documents through the backend.
+              </span>
+            </div>
 
             {/* Step Indicator */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '32px', marginBottom: '24px', padding: '16px', backgroundColor: '#FFFFFF', borderRadius: '10px', border: '1px solid var(--border)' }}>
@@ -1397,7 +1392,7 @@ export default function Home() {
 
             {/* Side-by-Side Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px', marginBottom: '24px' }}>
-              
+
               {/* Card 1: Tender RFP Document (Interactive File Upload & Quick Load) */}
               <div className="card" style={{ padding: '24px', borderTop: tenderDocument ? '4px solid var(--success)' : '4px solid var(--navy)' }}>
                 <div style={{ width: '48px', height: '48px', margin: '0 auto 12px auto', borderRadius: '10px', backgroundColor: tenderDocument ? 'var(--success-bg)' : 'var(--info-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1418,10 +1413,10 @@ export default function Home() {
                     </div>
                     <div><strong>Tender Ref:</strong> {tenderDocument.tender_id}</div>
                     <div><strong>Title:</strong> {tenderDocument.title}</div>
-                    <div><strong>Budget:</strong> INR {tenderDocument.budget_inr.toLocaleString()}</div>
-                    <div><strong>Mandatory EMD:</strong> INR {tenderDocument.emd_inr.toLocaleString()} (MSEs Exempt)</div>
-                    <div><strong>Min Turnover:</strong> INR {tenderDocument.min_turnover_cr} Cr (MSEs Exempt)</div>
-                    <div><strong>Make in India:</strong> Class-1 Supplier (&gt;= {tenderDocument.min_local_content_pct}%)</div>
+                    <div><strong>Budget:</strong> INR {formatRequirement(tenderDocument.budget_inr)}</div>
+                    <div><strong>Mandatory EMD:</strong> INR {formatRequirement(tenderDocument.emd_inr)} (Exemptions require officer verification)</div>
+                    <div><strong>Min Turnover:</strong> INR {formatRequirement(tenderDocument.min_turnover_cr)} Cr (Exemptions require officer verification)</div>
+                    <div><strong>Make in India:</strong> Tender threshold: {formatRequirement(tenderDocument.min_local_content_pct)}%</div>
                     <div><strong>Warranty Req:</strong> {tenderDocument.warranty_requirement}</div>
                   </div>
                 ) : (
@@ -1436,7 +1431,7 @@ export default function Home() {
                   type="file"
                   ref={tenderFileInputRef}
                   style={{ display: 'none' }}
-                  accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.bmp,.tiff,.tif,.webp"
+                  accept=".pdf,.docx,.xlsx,.csv,.jpg,.jpeg,.png,.bmp,.tiff,.tif,.webp"
                   onChange={(e) => {
                     if (e.target.files && e.target.files[0]) {
                       handleTenderUpload(e.target.files[0]);
@@ -1479,7 +1474,7 @@ export default function Home() {
                   type="file"
                   ref={vendorFileInputRef}
                   style={{ display: 'none' }}
-                  accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.bmp,.tiff,.tif,.webp"
+                  accept=".pdf,.docx,.xlsx,.csv,.jpg,.jpeg,.png,.bmp,.tiff,.tif,.webp"
                   onChange={(e) => {
                     if (e.target.files && e.target.files[0]) {
                       handleAddVendorFile(e.target.files[0]);
@@ -1526,7 +1521,7 @@ export default function Home() {
                   className="btn btn-secondary"
                   style={{ fontSize: '11.5px', padding: '4px 10px' }}
                   onClick={() => setAddedVendors([])}
-                  disabled={addedVendors.length === 0}
+                  disabled={isUploading || addedVendors.length === 0}
                 >
                   Clear Queue
                 </button>
@@ -1578,7 +1573,7 @@ export default function Home() {
                 className="btn btn-primary"
                 style={{ padding: '12px 28px', fontSize: '14px', fontWeight: 800 }}
                 onClick={handleStartEvaluation}
-                disabled={!tenderDocument || addedVendors.length === 0}
+                disabled={isUploading || !tenderDocument || addedVendors.length === 0}
               >
                 Start Automated Evaluation ({addedVendors.length} Vendors) &rarr;
               </button>
@@ -1599,7 +1594,7 @@ export default function Home() {
                 </p>
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button className="btn btn-navy" onClick={() => handleDownloadPdf(bestValueBid?.file_id || 'Bid_ApexLabs_MSME.pdf')} disabled={bids.length === 0}>
+                <button className="btn btn-navy" onClick={() => handleDownloadPdf(bestValueBid?.file_id || selectedVendor?.file_id || bids[0]?.file_id)} disabled={bids.length === 0}>
                   Download Audit Result (PDF)
                 </button>
                 <button
@@ -1629,11 +1624,14 @@ export default function Home() {
                       Value-for-Money Spotlight
                     </span>
                     <span style={{ fontSize: '14px', fontWeight: 800, color: '#14532D' }}>
-                      Recommended L1 Candidate: {bestValueBid?.file_info?.vendor_name}
+                      Meets evaluated checks: {bestValueBid?.file_info?.vendor_name}
                     </span>
                   </div>
                   <div style={{ fontSize: '13.5px', fontWeight: 800, color: 'var(--success)' }}>
-                    Total Public Savings: INR {bestValueBid?.value_spotlight?.estimated_savings_inr ? bestValueBid.value_spotlight.estimated_savings_inr.toLocaleString() : '8,00,000'} (16% Below Budget)
+                    Estimated difference from budget: INR {formatRequirement(bestValueBid?.value_spotlight?.estimated_savings_inr)}
+                    {bestValueBid?.value_spotlight?.estimated_savings_inr != null && bestValueBid?.tender_requirements?.budget_inr > 0 && (
+                      <> ({(bestValueBid.value_spotlight.estimated_savings_inr / bestValueBid.tender_requirements.budget_inr * 100).toFixed(1)}% below budget)</>
+                    )}
                   </div>
                 </div>
                 <div style={{ padding: '14px 20px', display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
@@ -1651,10 +1649,10 @@ export default function Home() {
               <div className="card-header">
                 <div>
                   <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--navy)' }}>Evaluated Vendor Bids ({bids.length})</h3>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Click any status chip to view the exact extracted document text &amp; citation</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Click a status chip to inspect the rule explanation and internal check identifier</div>
                 </div>
                 <span className="badge badge-neutral">
-                  {bids.filter((b) => b?.overall_status === 'COMPLIANT' || (b?.is_compliant && b?.overall_status !== 'NEEDS_REVIEW' && b?.overall_status !== 'NON_COMPLIANT')).length} Compliant / {bids.filter((b) => b?.overall_status === 'NEEDS_REVIEW').length} Under Review / {bids.filter((b) => b?.overall_status === 'NON_COMPLIANT' || (!b?.is_compliant && b?.overall_status !== 'NEEDS_REVIEW')).length} Disqualified
+                  {bids.filter((b) => b?.overall_status === 'COMPLIANT' || (b?.is_compliant && b?.overall_status !== 'NEEDS_REVIEW' && b?.overall_status !== 'NON_COMPLIANT')).length} Compliant / {bids.filter((b) => b?.overall_status === 'NEEDS_REVIEW').length} Under Review / {bids.filter((b) => b?.overall_status === 'NON_COMPLIANT' || (!b?.is_compliant && b?.overall_status !== 'NEEDS_REVIEW')).length} Non-compliant on evaluated checks
                 </span>
               </div>
               <div className="card-body" style={{ padding: 0, overflowX: 'auto' }}>
@@ -1862,7 +1860,7 @@ export default function Home() {
                   {shortlistedVendors.some((v) => v.file_id === selectedVendor.file_id) ? '✓ Shortlisted' : '☆ Shortlist Vendor'}
                 </button>
                 <button className="btn btn-navy" onClick={() => handleDownloadPdf(selectedVendor.file_id)}>
-                  Download Official PDF Dossier
+                  Download Procurement Review Report
                 </button>
               </div>
             </div>
@@ -1871,7 +1869,7 @@ export default function Home() {
             <div className="card" style={{ marginBottom: '20px', padding: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
                 <div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>VENDOR DETAIL &amp; COMPLIANCE DOSSIER</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>VENDOR DETAIL &amp; PROCUREMENT REVIEW</div>
                   <h1 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--navy)', marginTop: '2px' }}>
                     {selectedVendor?.file_info?.vendor_name}
                   </h1>
@@ -1891,11 +1889,11 @@ export default function Home() {
                     <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>Verdict</div>
                     <div>
                       {selectedVendor?.overall_status === 'COMPLIANT' || (selectedVendor?.is_compliant && selectedVendor?.overall_status !== 'NEEDS_REVIEW' && selectedVendor?.overall_status !== 'NON_COMPLIANT') ? (
-                        <span className="badge badge-pass" style={{ fontSize: '12px' }}>Eligible / Compliant</span>
+                        <span className="badge badge-pass" style={{ fontSize: '12px' }}>Meets evaluated checks</span>
                       ) : selectedVendor?.overall_status === 'NEEDS_REVIEW' ? (
                         <span className="badge badge-warning" style={{ fontSize: '12px' }}>Needs Review</span>
                       ) : (
-                        <span className="badge badge-fail" style={{ fontSize: '12px' }}>Disqualified</span>
+                        <span className="badge badge-fail" style={{ fontSize: '12px' }}>Non-compliant on evaluated checks</span>
                       )}
                     </div>
                   </div>
@@ -1907,7 +1905,7 @@ export default function Home() {
             {selectedVendor?.contradictions_detected && selectedVendor.contradictions_detected.length > 0 && (
               <div className="card" style={{ marginBottom: '20px', backgroundColor: 'var(--critical-bg)', border: '1.5px solid var(--critical-border)' }}>
                 <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--critical-border)', fontWeight: 800, color: 'var(--critical)', fontSize: '13.5px' }}>
-                  Critical Fraud Warning: Cross-Document Discrepancies &amp; Unsubstantiated Claims Detected ({selectedVendor.contradictions_detected.length})
+                  Document Discrepancies &amp; Claims Requiring Officer Review ({selectedVendor.contradictions_detected.length})
                 </div>
                 <div className="card-body">
                   {selectedVendor.contradictions_detected.map((ct, i) => (
@@ -1931,14 +1929,14 @@ export default function Home() {
               <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <h3 style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--navy)' }}>
-                    Government Gateway Cross-Verification Handshake (5 Core Registries)
+                    Offline Identity Checks &amp; Registry Verification Status
                   </h3>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                     Offline syntax, structure, and Modulus-36 checksum validation (Live registries unverified in prototype)
                   </div>
                 </div>
-                <span className={`badge ${selectedVendor?.government_verification?.overall_govt_verification === 'PASS' ? 'badge-pass' : 'badge-fail'}`}>
-                  {selectedVendor?.government_verification?.verified_gateways_count || 5}/{selectedVendor?.government_verification?.total_gateways || 5} Portals Verified
+                <span className={`badge ${'badge-neutral'}`}>
+                  {selectedVendor?.government_verification?.verified_gateways_count ?? 0} Offline Checks Passed · 0 Live Registries Verified
                 </span>
               </div>
               <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
@@ -1955,7 +1953,7 @@ export default function Home() {
                         {gw.status}
                       </div>
                       <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                        {gw.details?.taxpayer_status ? `Status: ${gw.details.taxpayer_status}` : gw.details?.company_status ? `RoC: ${gw.details.company_status}` : gw.details?.category ? `Category: ${gw.details.category}` : gw.details?.blacklisting_orders ? `Debarment: ${gw.details.blacklisting_orders}` : 'Registry verified'}
+                        {gw.details?.sync_status || 'Live registry unverified'}
                       </div>
                     </div>
                   ))
@@ -1971,18 +1969,18 @@ export default function Home() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                   <div>
                     <div style={{ fontSize: '11.5px', fontWeight: 700, color: selectedVendor.claim_integrity.integrity_score >= 80 ? 'var(--info)' : 'var(--critical)', textTransform: 'uppercase' }}>
-                      Claim Evidence &amp; Authenticity Confidence Index
+                      Configured Contradiction Check Summary
                     </div>
                     <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--navy)', marginTop: '2px' }}>
-                      Score: {selectedVendor.claim_integrity.integrity_score}/100 — {selectedVendor.claim_integrity.integrity_tier}
+                      {selectedVendor.contradictions_detected?.length ? `${selectedVendor.contradictions_detected.length} configured signals require inspection` : 'No configured contradiction signals detected'}
                     </div>
                     <div style={{ fontSize: '12px', color: 'var(--text-main)', marginTop: '4px' }}>
-                      {selectedVendor.claim_integrity.description}
+                      Checks apply to the submitted text. Document authenticity and live registry records remain unverified.
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <span className={`badge ${selectedVendor.claim_integrity.unsubstantiated_claims_count === 0 ? 'badge-pass' : 'badge-fail'}`}>
-                      {selectedVendor.claim_integrity.unsubstantiated_claims_count} Unsubstantiated Claims
+                      {selectedVendor.claim_integrity.unsubstantiated_claims_count} Flagged Claim Discrepancies
                     </span>
                   </div>
                 </div>
@@ -1991,7 +1989,7 @@ export default function Home() {
 
             {/* 2-Column Requirement Checks + Evidence Viewer & Override Layout */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
-              
+
               {/* Left Column: Requirement Checks List */}
               <div className="card">
                 <div className="card-header">
@@ -2062,7 +2060,7 @@ export default function Home() {
                       {/* Extracted Snippet Trace */}
                       <div style={{ padding: '14px', backgroundColor: '#FAFAFA', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '12.5px', color: 'var(--text-main)', lineHeight: '1.6', marginBottom: '16px' }}>
                         <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px' }}>
-                          SOURCE DOCUMENT EVIDENCE TRACE:
+                          RULE EVALUATION SUMMARY:
                         </div>
                         {selectedEvidenceClause.evidence}
                         {selectedEvidenceClause.remedy && (
@@ -2071,6 +2069,13 @@ export default function Home() {
                           </div>
                         )}
                       </div>
+
+                      <AIReviewPanel
+                        key={JSON.stringify([selectedVendor.file_id, selectedVendor.file_info?.source_sha256, selectedVendor.tender_id, selectedVendor.tender_requirements, selectedEvidenceClause])}
+                        backendUrl={getBackendUrl()}
+                        vendor={selectedVendor}
+                        clause={selectedEvidenceClause}
+                      />
 
                       {/* Interactive Supervisory Decision Change Section */}
                       <div style={{ padding: '16px', backgroundColor: 'var(--bg-sand)', borderRadius: '10px', border: '1.5px solid var(--border)' }}>
@@ -2239,8 +2244,8 @@ export default function Home() {
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <strong style={{ fontSize: '14px', color: 'var(--navy)' }}>{b?.file_info?.vendor_name}</strong>
-                            <span className={`badge ${b?.is_compliant ? 'badge-pass' : 'badge-fail'}`}>
-                              {b?.is_compliant ? 'Eligible' : 'Disqualified'}
+                            <span className={`badge ${evaluationBadge(b)}`}>
+                              {evaluationLabel(b)}
                             </span>
                           </div>
                           <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -2271,7 +2276,7 @@ export default function Home() {
                         {reEvalSelectedVendor?.file_info?.vendor_name}
                       </h3>
                       <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                        Current Status: <strong style={{ color: reEvalSelectedVendor?.is_compliant ? 'var(--success)' : 'var(--critical)' }}>{reEvalSelectedVendor?.is_compliant ? 'Eligible' : 'Disqualified (Action Required)'}</strong> &bull; Original File: {reEvalSelectedVendor?.file_info?.filename}
+                        Current Status: <strong style={{ color: `var(--${evaluationTone(reEvalSelectedVendor)})` }}>{evaluationLabel(reEvalSelectedVendor)}</strong> &bull; Original File: {reEvalSelectedVendor?.file_info?.filename}
                       </div>
                     </div>
 
@@ -2295,7 +2300,7 @@ export default function Home() {
                       type="file"
                       ref={reEvalFileInputRef}
                       style={{ display: 'none' }}
-                      accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.bmp,.tiff,.tif,.webp"
+                      accept=".pdf,.docx,.xlsx,.csv,.jpg,.jpeg,.png,.bmp,.tiff,.tif,.webp"
                       onChange={(e) => {
                         if (e.target.files && e.target.files[0]) {
                           handleUploadRectificationFile(e.target.files[0]);
@@ -2344,7 +2349,7 @@ export default function Home() {
                         Tender: {tenderDocument?.tender_id || 'GEM/2026/B/892100'} | Rectified File: {reEvalResult?.file_info?.filename}
                       </div>
                     </div>
-                    <span className="badge badge-pass">Clarification &amp; Rectification Verified</span>
+                    <span className="badge badge-pass">Re-evaluation Result</span>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', alignItems: 'center' }}>
@@ -2353,7 +2358,7 @@ export default function Home() {
                         BEFORE (Initial Audit)
                       </div>
                       <div style={{ fontSize: '24px', fontWeight: 800, color: reEvalPreviousResult?.is_compliant ? 'var(--navy)' : 'var(--critical)', marginTop: '4px' }}>
-                        {reEvalPreviousResult?.is_compliant ? 'Eligible (Initial)' : '0% (Disqualified)'}
+                        {reEvalPreviousResult?.overall_status || 'NOT_EVALUATED'}
                       </div>
                       <div style={{ fontSize: '12px', color: '#7F1D1D', marginTop: '6px' }}>
                         {reEvalPreviousResult?.contradictions_detected && reEvalPreviousResult.contradictions_detected.length > 0 ? (
@@ -2370,17 +2375,17 @@ export default function Home() {
                       &rarr;
                     </div>
 
-                    <div style={{ padding: '18px', backgroundColor: 'var(--success-bg)', borderRadius: '10px', border: '1px solid var(--success-border)' }}>
-                      <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--success)', textTransform: 'uppercase' }}>
+                    <div style={{ padding: '18px', backgroundColor: `var(--${evaluationTone(reEvalResult)}-bg)`, borderRadius: '10px', border: `1px solid var(--${evaluationTone(reEvalResult)}-border)` }}>
+                      <div style={{ fontSize: '11.5px', fontWeight: 700, color: `var(--${evaluationTone(reEvalResult)})`, textTransform: 'uppercase' }}>
                         AFTER (Rectification Uploaded)
                       </div>
-                      <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--success)', marginTop: '4px' }}>
-                        {reEvalResult.is_compliant ? '100% (Compliant)' : '88% (Under Review)'}
+                      <div style={{ fontSize: '24px', fontWeight: 800, color: `var(--${evaluationTone(reEvalResult)})`, marginTop: '4px' }}>
+                        {reEvalResult.overall_status || 'NEEDS_REVIEW'}
                       </div>
                       <div style={{ fontSize: '12px', color: '#14532D', marginTop: '6px' }}>
-                        * Active GSTIN Reactivation Letter Verified<br/>
-                        * Corrected OEM MAF PAN Attached<br/>
-                        * Bank Guarantee INR 1.00L Provided
+                        {reEvalResult.clause_level_decisions?.map((clause) => (
+                          <div key={clause.clause_id}>{clause.clause_name}: {clause.status}</div>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -2406,13 +2411,13 @@ export default function Home() {
                           <td><span className="badge badge-pass">Updated</span></td>
                         </tr>
                         <tr>
-                          <td style={{ fontWeight: 700 }}>Resolved Issue</td>
-                          <td>Tax status active, PAN match verified, EMD guarantee confirmed</td>
-                          <td><span className="badge badge-pass">Resolved</span></td>
+                          <td style={{ fontWeight: 700 }}>Re-evaluated Checks</td>
+                          <td>{reEvalResult.clause_level_decisions?.map((c) => `${c.clause_name}: ${c.status}`).join('; ')}</td>
+                          <td><span className={`badge ${evaluationBadge(reEvalResult)}`}>{evaluationLabel(reEvalResult)}</span></td>
                         </tr>
                         <tr>
                           <td style={{ fontWeight: 700 }}>Recommendation</td>
-                          <td>Moved from Disqualified to Supervisory Procurement Review</td>
+                          <td>Replacement submission evaluated; officer review remains required</td>
                           <td><span className="badge badge-pass">Actionable</span></td>
                         </tr>
                       </tbody>
@@ -2442,7 +2447,7 @@ export default function Home() {
                   onClick={() => handleDownloadPdf(shortlistedVendors[0]?.file_id || bids[0]?.file_id)}
                   disabled={shortlistedVendors.length === 0}
                 >
-                  Download Final Audit Dossier (PDF)
+                  Download Procurement Review Report (PDF)
                 </button>
                 <button
                   className="btn btn-primary"
@@ -2539,7 +2544,7 @@ export default function Home() {
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                             <span style={{ color: 'var(--text-muted)' }}>Risk Profile:</span>
-                            <span className="badge badge-pass">Low Risk ({vendor?.rejection_risk_analysis?.risk_score || '0.05'})</span>
+                            <span className="badge badge-pass">Low Risk ({vendor?.rejection_risk_analysis?.risk_score ?? 'Unspecified'})</span>
                           </div>
                         </div>
                       </div>
@@ -2556,7 +2561,7 @@ export default function Home() {
                     <div style={{ display: 'flex', gap: '12px' }}>
                       <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: 'var(--gold)', color: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '11px', flexShrink: 0 }}>1</div>
                       <div>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--navy)' }}>100% Statutory Compliance with Mandatory GFR Criteria</div>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--navy)' }}>Meets the Implemented Tender Checks</div>
                         <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                           Shortlisted candidates ({shortlistedVendors.map((v) => v.file_info?.vendor_name).join(', ')}) satisfy GFR Rules 149, 160, 170 and Make in India Order 2017.
                         </div>
@@ -2568,7 +2573,7 @@ export default function Home() {
                       <div>
                         <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--navy)' }}>Optimal Public Value &amp; Budget Adherence</div>
                         <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                          Quotes are fully within authorized tender allocation of INR {tenderDocument?.budget_inr ? tenderDocument.budget_inr.toLocaleString() : '50,00,000'}.
+                          Quotes are fully within authorized tender allocation of INR {formatRequirement(tenderDocument?.budget_inr)}.
                         </div>
                       </div>
                     </div>
@@ -2576,7 +2581,7 @@ export default function Home() {
                     <div style={{ display: 'flex', gap: '12px' }}>
                       <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: 'var(--gold)', color: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '11px', flexShrink: 0 }}>3</div>
                       <div>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--navy)' }}>Verified Integrity &amp; Absence of Fraud Red Flags</div>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--navy)' }}>Document Checks for Officer Review</div>
                         <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                           Zero contradictory PANs, active GSTIN verification, and valid commercial bank guarantees.
                         </div>
@@ -2640,17 +2645,17 @@ export default function Home() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                   <div>
                     <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Mandatory Legal Framework
+                      Prototype Rule Coverage
                     </div>
                     <div style={{ fontSize: '15px', fontWeight: 800, marginTop: '2px' }}>
-                      Sovereign Procurement Baseline Rules (Active &amp; Pre-Enforced)
+                      Implemented Tender Checks
                     </div>
                     <div style={{ fontSize: '11.5px', color: '#E2E8F0', marginTop: '4px' }}>
-                      These statutory GFR 2017 &amp; GeM rules are mandatory for all public tenders. Tender RFPs supply dynamic item specifications.
+                      This prototype implements five checks against the active tender criteria. It does not encode the complete procurement ruleset.
                     </div>
                   </div>
                   <span className="badge" style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: '#FFFFFF', border: '1px solid rgba(255,255,255,0.3)', fontSize: '11px' }}>
-                    5 Core Statutory Rules Active
+                    5 Tender Checks Implemented
                   </span>
                 </div>
               </div>
@@ -2665,7 +2670,7 @@ export default function Home() {
                     <span className="badge badge-pass">RFP Conditions In Effect</span>
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--text-main)', marginTop: '4px' }}>
-                    <strong>Item Title:</strong> {tenderDocument.title} | <strong>Budget:</strong> INR {tenderDocument.budget_inr.toLocaleString()} | <strong>Mandatory EMD:</strong> INR {tenderDocument.emd_inr.toLocaleString()} | <strong>Turnover:</strong> INR {tenderDocument.min_turnover_cr} Cr | <strong>Local Content &gt;=</strong> {tenderDocument.min_local_content_pct}%
+                    <strong>Item Title:</strong> {tenderDocument.title} | <strong>Budget:</strong> INR {formatRequirement(tenderDocument.budget_inr)} | <strong>Mandatory EMD:</strong> INR {formatRequirement(tenderDocument.emd_inr)} | <strong>Turnover:</strong> INR {formatRequirement(tenderDocument.min_turnover_cr)} Cr | <strong>Local Content &gt;=</strong> {formatRequirement(tenderDocument.min_local_content_pct)}%
                   </div>
                 </div>
               )}
@@ -2694,18 +2699,18 @@ export default function Home() {
                   <span className="badge badge-pass">Statutory Rule</span>
                 </div>
                 <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  Mandates public procurement through the GeM portal and requires active, non-expired GSTIN tax registration verified in real-time against the GSTN database.
+                  The prototype validates GSTIN syntax and checksum offline. Active registration, filings and live GSTN records require separate verification.
                 </p>
               </div>
 
               {/* Base Rule 2: GFR 160 */}
               <div className="card" style={{ padding: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--navy)' }}>GFR 2017 Rule 160 &amp; MSME Policy Order 2012 — Turnover Exemption</div>
+                  <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--navy)' }}>Tender Financial Criteria / GFR 2017 Rule 173 — Exemption Review</div>
                   <span className="badge badge-exempt">Statutory Exemption</span>
                 </div>
                 <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  Mandates minimum average turnover threshold of INR {tenderDocument ? `${tenderDocument.min_turnover_cr} Cr` : '1.50 Cr'}, with full statutory waiver granted for registered Micro &amp; Small Enterprises holding valid Udyam certificates.
+                  Turnover threshold: INR {formatRequirement(tenderDocument?.min_turnover_cr)} Cr. A Udyam number alone does not establish exemption eligibility; the officer must verify the certificate and applicable tender relaxation.
                 </p>
               </div>
 
@@ -2716,7 +2721,7 @@ export default function Home() {
                   <span className="badge badge-pass">Mandatory Guarantee</span>
                 </div>
                 <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  Requires 2% EMD Bank Guarantee or FDR (INR {tenderDocument ? `${tenderDocument.emd_inr.toLocaleString()}` : '1,00,000'}) from scheduled commercial banks, with statutory waiver granted to MSEs and DPIIT-recognized Startups.
+                  Tender EMD amount: INR {formatRequirement(tenderDocument?.emd_inr)}. Nil EMD is not applicable. Claimed exemptions and instrument authenticity require officer verification.
                 </p>
               </div>
 
@@ -2727,18 +2732,18 @@ export default function Home() {
                   <span className="badge badge-pass">Local Content</span>
                 </div>
                 <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  Class-1 Local Suppliers must declare &gt;= {tenderDocument ? `${tenderDocument.min_local_content_pct}%` : '50%'} domestic value addition to qualify for procurement preference.
+                  Class-1 Local Suppliers must declare &gt;= {tenderDocument ? `${formatRequirement(tenderDocument.min_local_content_pct)}%` : '50%'} domestic value addition to qualify for procurement preference.
                 </p>
               </div>
 
               {/* Base Rule 5: OEM Warranty & MAF */}
               <div className="card" style={{ padding: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--navy)' }}>CVC &amp; GFR Rule 151 — Manufacturer Authorization &amp; Comprehensive Warranty</div>
+                  <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--navy)' }}>Tender Technical Specifications — Warranty Duration &amp; Service</div>
                   <span className="badge badge-pass">Technical Standard</span>
                 </div>
                 <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  Mandates verified OEM Manufacturer Authorization Form (MAF) and minimum 3-Year comprehensive onsite warranty backing for all IT, electronics, and medical equipment.
+                  Required warranty: {formatRequirement(tenderDocument?.min_warranty_years)} years. Required service: {tenderDocument?.required_service_type || 'Unspecified'}. The prototype evaluates duration and service location; it does not authenticate OEM authorization or every SLA term.
                 </p>
               </div>
             </div>
@@ -2753,7 +2758,7 @@ export default function Home() {
                 Procurement Officer Profile &amp; Sign-In
               </h1>
               <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Enter your evaluating officer identification details. These credentials will be printed on official PDF dossiers for physical manual sign-off.
+                Enter the name and designation printed on prototype review reports. These are display details, not an authenticated officer identity.
               </p>
             </div>
 
@@ -2794,11 +2799,11 @@ export default function Home() {
               {/* Physical Sign-Off Transparency Notice */}
               <div style={{ padding: '16px', backgroundColor: '#FAFAFA', borderRadius: '8px', border: '1px solid var(--border)', marginBottom: '22px' }}>
                 <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--navy)', marginBottom: '4px' }}>
-                  Statutory Physical Verification Protocol:
+                  Prototype Report Sign-Off:
                 </div>
                 <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
-                  To guarantee transparency and prevent unverified digital alterations, digital signature images are disabled. 
-                  The generated official PDF audit dossier prints your name and designation with a dedicated manual sign-off section 
+                  This prototype does not provide a cryptographic digital signature or document authentication.
+                  The generated procurement review report prints your name and designation with a manual sign-off section
                   for your physical signature and official department stamp upon printout.
                 </div>
               </div>
@@ -2928,13 +2933,13 @@ export default function Home() {
 
             <div style={{ marginBottom: '16px', padding: '14px', backgroundColor: '#FAFAFA', borderRadius: '8px', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
-                Extracted Text Evidence:
+                Rule Evaluation Explanation:
               </div>
               <div style={{ fontSize: '12.5px', color: 'var(--text-main)', lineHeight: '1.6' }}>
                 "{evidenceModalData.text}"
               </div>
               <div style={{ fontSize: '11px', color: 'var(--info)', fontWeight: 600, marginTop: '8px' }}>
-                Citation: {evidenceModalData.citation}
+                Internal check: {evidenceModalData.citation}
               </div>
             </div>
 

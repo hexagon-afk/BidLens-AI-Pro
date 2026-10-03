@@ -66,7 +66,7 @@ def verify_government_credentials(extracted_data: dict) -> dict:
 
     # ── 1. GSTN Portal Verification ───────────────────────────
     gstn_status = "NOT_PROVIDED"
-    gstn_badge = "FAIL"
+    gstn_badge = "NEUTRAL"
     gstn_details = {}
     if gstin:
         gstin_valid_format = bool(re.match(r"^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}$", gstin))
@@ -119,7 +119,7 @@ def verify_government_credentials(extracted_data: dict) -> dict:
 
     # ── 2. PAN Verification & Entity Type Check ───────────────
     pan_status = "NOT_PROVIDED"
-    pan_badge = "FAIL"
+    pan_badge = "NEUTRAL"
     pan_details = {}
     if pan:
         pan_valid_format = bool(re.match(r"^[A-Z]{5}\d{4}[A-Z]{1}$", pan))
@@ -159,8 +159,8 @@ def verify_government_credentials(extracted_data: dict) -> dict:
             udyam_details = {
                 "portal": "Udyam MSME National Portal",
                 "udyam_id": udyam,
-                "category": "Micro & Small Enterprise (MSE)",
-                "statutory_exemptions_eligible": True,
+                "category": "UNVERIFIED (Udyam format does not establish Micro/Small eligibility)",
+                "statutory_exemptions_eligible": None,
                 "sync_status": "Format syntax valid (Live MSME API unverified)"
             }
         else:
@@ -203,29 +203,11 @@ def verify_government_credentials(extracted_data: dict) -> dict:
         epfo_badge = "NEUTRAL"
         epfo_details = {"portal": "EPFO & ESIC Labour Portal", "sync_status": "No entity credentials provided"}
 
-    # ── 6. Central Public Debarment / CPPP Watchlist Check ────
-    if not has_any_id:
-        debarment_status = "NOT_EVALUATED (EMPTY_INPUT)"
-        debarment_badge = "NEUTRAL"
-        debarment_details = {"portal": "CPPP Central Debarment Watchlist", "status": "NOT_EVALUATED"}
-    elif is_expired or len(set(all_pans)) > 1:
-        debarment_status = "DOCUMENT ANOMALY DETECTED"
-        debarment_badge = "FAIL"
-        debarment_details = {
-            "portal": "CPPP Central Debarment Watchlist",
-            "status": "DOCUMENT ANOMALY (OFFLINE)",
-            "blacklisting_orders": "Document anomaly flagged: Multiple contradictory PANs or cancelled tax filing found in submission. Official CPPP database unverified.",
-            "sync_status": "Document Anomaly Flag Raised (Official CPPP API Unverified)"
-        }
-    else:
-        debarment_status = "NO ADVERSE RECORD (LOCAL SAMPLE)"
-        debarment_badge = "PASS"
-        debarment_details = {
-            "portal": "CPPP Central Debarment Watchlist",
-            "status": "NO ADVERSE RECORD (OFFLINE SAMPLE)",
-            "blacklisting_orders": "No adverse debarment record identified in local test dataset. Official CPPP registry unverified.",
-            "sync_status": "Offline Prototype Sample Check (Official CPPP API Unverified)"
-        }
+    # No connected watchlist or configured local registry supports a debarment clearance.
+    debarment_status = "UNVERIFIED (OFFLINE PROTOTYPE)" if has_any_id else "NOT_EVALUATED (EMPTY_INPUT)"
+    debarment_badge = "NEUTRAL"
+    debarment_details = {"portal": "CPPP Central Debarment Watchlist", "status": "UNVERIFIED",
+                         "sync_status": "Official CPPP registry is not connected. No debarment clearance is asserted."}
 
     # ── 7. Cross-Consistency: GSTIN vs PAN Check ──────────────
     pan_gstin_consistent = True
@@ -237,20 +219,21 @@ def verify_government_credentials(extracted_data: dict) -> dict:
             consistency_note = f"Discrepancy: GSTIN contains PAN ({embedded_pan}) which differs from declared PAN ({pan})."
 
     # Compile Handshake Results
-    verified_gateways_count = sum(1 for b in [gstn_badge, pan_badge, debarment_badge] if b == "PASS")
+    verified_gateways_count = sum(1 for b in [gstn_badge, pan_badge] if b == "PASS")
     if udyam and udyam_badge == "PASS":
         verified_gateways_count += 1
 
     overall_status = "FLAGGED_FOR_REVIEW"
     if not has_any_id:
         overall_status = "NOT_APPLICABLE"
-    elif gstn_badge == "PASS" and pan_badge == "PASS" and pan_gstin_consistent and debarment_badge == "PASS":
-        overall_status = "PASS"
+    elif gstn_badge == "PASS" and pan_badge == "PASS" and pan_gstin_consistent:
+        overall_status = "OFFLINE_CHECKS_COMPLETE_LIVE_REGISTRIES_UNVERIFIED"
 
     return {
         "overall_govt_verification": overall_status,
         "verified_gateways_count": verified_gateways_count,
-        "total_gateways": 6 if udyam else 5,
+        "total_gateways": 6,
+        "live_registries_verified": 0,
         "pan_gstin_consistent": pan_gstin_consistent,
         "consistency_note": consistency_note,
         "gateways": [

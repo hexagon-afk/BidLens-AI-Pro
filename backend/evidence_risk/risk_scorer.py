@@ -56,7 +56,7 @@ def compute_risk_and_value_intelligence(
             "clause": f.get("clause_name"),
             "regulation": f.get("regulation_ref"),
             "reason": f.get("evidence"),
-            "impact": "Grounds for mandatory technical disqualification."
+            "impact": "Confirmed shortfall against the evaluated requirement; officer must determine the procurement action."
         })
 
     for c in critical_contradictions:
@@ -95,14 +95,14 @@ def compute_risk_and_value_intelligence(
         spotlight_highlights.append(f"Quoted Price: INR {quote:,.0f} (Competitive financial proposal).")
 
     if "5-year" in warranty.lower() or "5 year" in warranty.lower():
-        spotlight_highlights.append("Extended Service: 5-Year Comprehensive Onsite Warranty (Exceeds baseline specifications).")
+        spotlight_highlights.append(f"Declared warranty: {warranty}. Compare with the active tender before claiming added value.")
 
     for perk in bonus_perks:
         if perk not in spotlight_highlights:
             spotlight_highlights.append(f"Hardware Value-Add: {perk}")
 
     if is_msme:
-        spotlight_highlights.append("Sovereign MSME Support: Complies with Public Procurement Policy Order 2012 MSE preference.")
+        spotlight_highlights.append("MSME status claimed; preference eligibility and certificate authenticity require officer verification.")
 
     # A bid can only be recommended for value spotlight if it is COMPLIANT
     if overall_status == "COMPLIANT" and (is_msme or (savings_inr and savings_inr > 0) or len(bonus_perks) > 0):
@@ -138,14 +138,15 @@ def compute_risk_and_value_intelligence(
         executive_summary = f"SUPERVISORY REVIEW REQUIRED: {len(needs_review_clauses)} clause(s) require officer verification before compliance can be established."
     elif value_spotlight_active:
         savings_text = f"with INR {savings_inr:,.0f} cost savings and " if savings_inr is not None else "with "
-        executive_summary = f"RECOMMENDED (VALUE-FOR-MONEY SPOTLIGHT): Fully compliant proposal {savings_text}superior warranty/hardware terms compared to standard bids."
+        executive_summary = f"RECOMMENDED (VALUE-FOR-MONEY SPOTLIGHT): Proposal meets evaluated checks {savings_text}declared terms for officer comparison. Authenticity and award suitability remain subject to review."
     else:
-        executive_summary = "COMPLIANT: Bid meets all evaluated statutory criteria and technical specifications."
+        executive_summary = "COMPLIANT: Bid meets the implemented checks against the supplied tender criteria. Document authenticity and final eligibility require officer review."
 
     return {
         "rejection_risk": {
             "risk_tier": risk_tier,
             "risk_score": risk_score,
+            "score_kind": "HEURISTIC_NOT_CALIBRATED_PROBABILITY",
             "rejection_likely": rejection_likely,
             "total_flaws_found": len(fail_clauses) + len(critical_contradictions),
             "reasons": risk_explanations

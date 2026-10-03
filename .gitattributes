@@ -1,0 +1,2 @@
+# Keep exported PDF demo assets byte-for-byte intact.
+*.pdf binary

@@ -235,3 +235,10 @@ backend/audit_decision_trail.json
 Thumbs.db
 
 
+
+# Local verification artifacts
+tmp/
+
+# Local officer events and exported verification artifacts
+backend/generated_reports/*.jsonl
+output/

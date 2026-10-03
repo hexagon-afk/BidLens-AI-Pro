@@ -24,7 +24,7 @@ def get_ocr_engine():
     if _ocr_engine is None:
         try:
             from rapidocr_onnxruntime import RapidOCR
-            _ocr_engine = RapidOCR()
+            _ocr_engine = RapidOCR(intra_op_num_threads=2, inter_op_num_threads=2)
         except Exception as e:
             print(f"RapidOCR initialization notice: {e}")
             _ocr_engine = None
@@ -326,7 +326,7 @@ def extract_tender_rfp_data(file_path: str) -> dict:
     # 7. Warranty Requirement & Service Location (Onsite vs Carry-in)
     warranty_req = None
     min_warranty_years = None
-    required_service_type = "Onsite"
+    required_service_type = None
 
     w_match = re.search(r"(?:warranty(?:\s+sla)?|sla|guarantee)[:\s\n]+(?:we\s+require\s+)?(\d+(?:\.\d+)?)\s*[- ](?:years?|yrs?|months?)", clean_text, re.IGNORECASE)
     if not w_match:
@@ -356,17 +356,24 @@ def extract_tender_rfp_data(file_path: str) -> dict:
     w_lines = " ".join([l for l in clean_text.split("\n") if any(k in l.lower() for k in ["warranty", "sla", "service level"])])
     if "carry-in" in w_lines.lower() or "carry in" in w_lines.lower() or "offsite" in w_lines.lower():
         required_service_type = "Carry-in"
-    else:
+    elif re.search(r"\bon[ -]?site\b", w_lines, re.IGNORECASE):
         required_service_type = "Onsite"
 
     if min_warranty_years is not None:
         yr_label = int(min_warranty_years) if min_warranty_years.is_integer() else min_warranty_years
-        warranty_req = f"{yr_label}-Year Comprehensive {required_service_type} Warranty"
+        warranty_req = f"{yr_label}-Year {required_service_type or 'Service Unspecified'} Warranty"
+
+    covered_pages = {int(n) for n in re.findall(r"--- Page (\d+)", full_text)}
+    extraction_complete = file_type != "PDF" or len(covered_pages) == page_count
+    if not extraction_complete or re.search(r"Parsing Fallback|Minimal Text Extracted|\bError:", full_text, re.I):
+        budget_inr = emd_inr = min_turnover_cr = min_local_content_pct = min_warranty_years = required_service_type = None
+        warranty_req = "Unresolved - incomplete tender extraction"
 
     return {
         "filename": os.path.basename(file_path),
         "file_type": file_type,
         "page_count": page_count,
+        "extraction_complete": extraction_complete,
         "tender_id": tender_id,
         "title": title,
         "budget_inr": budget_inr,
@@ -376,7 +383,9 @@ def extract_tender_rfp_data(file_path: str) -> dict:
         "warranty_requirement": warranty_req,
         "min_warranty_years": min_warranty_years,
         "required_service_type": required_service_type,
-        "raw_summary": clean_text[:400].strip()
+        "raw_summary": clean_text[:400].strip(),
+        "raw_text": full_text,
+        "filename": os.path.basename(file_path)
     }
 
 
@@ -387,7 +396,11 @@ def extract_document_data(file_path: str) -> dict:
     Extracts Vendor Identity, GSTIN, PAN, Udyam ID, Total Quote, Turnover, and Warranty.
     """
     full_text, page_count, file_type = extract_document_text(file_path)
-    is_unreadable = len(full_text.strip()) < 50 or "No text recognized" in full_text
+    is_unreadable = len(full_text.strip()) < 50 or bool(re.search(r"No text recognized|Minimal Text Extracted|Parsing Fallback|\bError:", full_text, re.I))
+    if re.fullmatch(r"--- Scanned Image \([^\n]*\) ---", full_text.strip()):
+        is_unreadable = True
+    covered_pages = {int(n) for n in re.findall(r"--- Page (\d+)", full_text)}
+    extraction_complete = not is_unreadable and (file_type != "PDF" or len(covered_pages) == page_count)
 
     # 1. Match GSTINs (Standard & Whitespace-Resilient)
     no_space_text = re.sub(r"\s+", "", full_text.upper())
@@ -417,7 +430,7 @@ def extract_document_data(file_path: str) -> dict:
     lines = [line.strip() for line in full_text.split("\n") if line.strip()]
     ignore_phrases = ["public procurement", "under the", "pursuant to", "government of", "ministry of", "order 2017", "make in india", "gfr 2017", "general financial rules", "department of"]
     
-    bidder_name_match = re.search(r"(?:Name of (?:the )?Bidder|Bidder Name|Company Name|Vendor Name|Submitted by|Supplier)[:\s]*([^\n\r,]+)", full_text, re.IGNORECASE)
+    bidder_name_match = re.search(r"^\s*(?:Name of (?:the )?Bidder|Bidder Name|Company Name|Vendor Name|Vendor Legal Entity|Submitted by|Supplier(?: Name)?)\s*[:|]\s*([^\n\r,|]+)", full_text, re.IGNORECASE | re.MULTILINE)
     if bidder_name_match and len(bidder_name_match.group(1).strip()) > 3:
         cand_name = bidder_name_match.group(1).strip()
         if not any(p in cand_name.lower() for p in ignore_phrases):
@@ -425,7 +438,7 @@ def extract_document_data(file_path: str) -> dict:
 
     if vendor_name == "Unknown Vendor":
         for line in lines:
-            if any(p in line.lower() for p in ignore_phrases):
+            if line.startswith("---") or any(p in line.lower() for p in ignore_phrases):
                 continue
             if any(term in line.lower() for term in ["pvt ltd", "private limited", "llp", "technologies", "devices", "corporation", "enterprises", "solutions", "systems", "industries", "infotech", "hardware", "labs"]):
                 cand = line.replace("Commercial & Technical Proposal", "").replace("Technical & Commercial Bid", "").replace("Bid Submission", "").replace("--- Scanned Image (", "").strip(" -:)")
@@ -501,7 +514,7 @@ def extract_document_data(file_path: str) -> dict:
     neg_emd_patterns = [
         r"\b(?:no|without|nil)\s+(?:bank\s+guarantee|bg|fdr|demand\s+draft|emd|bid\s+security)\b",
         r"\b(?:bank\s+guarantee|bg|fdr|demand\s+draft|emd|bid\s+security)\s+(?:is\s+)?(?:not\s+submitted|not\s+provided|missing|nil|not\s+attached)\b",
-        r"\bemd\s*(?:status)?[:\s]+(?:nil|not\s+provided|missing|exempted\s+without\s+proof)\b"
+        r"\bemd\s*(?:guarantee\s*)?(?:status)?[:\s]+(?:nil|not\s+submitted|not\s+provided|missing|exempted\s+without\s+proof)\b"
     ]
     is_explicit_no_emd = any(re.search(p, full_text, re.IGNORECASE) for p in neg_emd_patterns)
 
@@ -558,7 +571,7 @@ def extract_document_data(file_path: str) -> dict:
             for cand in num_matches:
                 try:
                     c_val = float(cand.replace(",", ""))
-                    if c_val >= 500 and c_val not in [2024, 2025, 2026, 2027]:
+                    if c_val >= 0:
                         emd_amount_inr = c_val
                         break
                 except Exception:
@@ -580,81 +593,56 @@ def extract_document_data(file_path: str) -> dict:
     elif any(term in full_text.lower() for term in ["bank guarantee", "bg no", "fdr", "demand draft"]):
         emd_status = "SUBMITTED"
     else:
-        emd_status = "MISSING"
+        emd_status = "UNRESOLVED"
 
-    # 9. Warranty Terms, Service Type & Scoped Duration Parsing
-    clean_w_text = re.sub(r"\b\d+\s*(?:years?|yrs?)\s+(?:of\s+)?(?:experience|standing|track\s*record)\b", "", full_text, flags=re.IGNORECASE)
+    # Interpret only warranty passages; never turn experience or quoted requirements into offers.
     warranty_terms = "Unresolved (Unreadable Document)" if is_unreadable else "Unspecified Warranty"
     warranty_years = None
-    offered_service_type = "Standard"
+    offered_service_type = None
     bonus_perks = []
-
-    # Priority 1: Match explicit bidder offer declarations
-    w_offer = re.search(
-        r"(?:(?:offered|quoted|comprehensive|standard|minimum)?\s*warranty(?:[^\n\r:]*)?[:\s\n]+(?:we\s+(?:provide|offer)(?:\s+a)?\s+)?)?(\d+(?:\.\d+)?)\s*[- ](?:years?|yrs?|months?)\s+([^\n\r.;,)]*(?:warranty|sla|onsite|carry-in)?)",
-        clean_w_text,
-        re.IGNORECASE
-    )
-    if not w_offer:
-        filtered_w_text = re.sub(r"(?:required|mandatory|minimum|tender|rfp|baseline)\s+warranty[^\n.;]*", "", clean_w_text, flags=re.IGNORECASE)
-        w_offer = re.search(r"warranty[:\s\n]+(?:of\s+)?(\d+(?:\.\d+)?)\s*(?:years?|yrs?|months?)", filtered_w_text, re.IGNORECASE)
-        if not w_offer:
-            w_offer = re.search(r"(\d+(?:\.\d+)?)\s*[- ](?:years?|yrs?|months?)\s+(?:comprehensive|onsite|standard|oem|carry-in|carry\s+in)?\s*warranty", filtered_w_text, re.IGNORECASE)
-
-    if w_offer and not is_unreadable:
-        try:
-            val = float(w_offer.group(1))
-            matched_phrase = w_offer.group(0).lower()
-            if "month" in matched_phrase:
-                val = val / 12.0
-            warranty_years = val
-
-            is_carry_in = any(k in clean_w_text.lower() for k in ["carry-in", "carry in", "offsite", "off-site", "workshop"])
-            is_onsite = any(k in clean_w_text.lower() for k in ["onsite", "on-site", "at site"]) and not is_carry_in
-            is_24x7 = any(k in clean_w_text.lower() for k in ["24x7", "24/7", "round the clock"])
-
-            if is_carry_in:
-                offered_service_type = "Carry-in"
-                coverage_desc = "Carry-in"
-            elif is_onsite and is_24x7:
-                offered_service_type = "Onsite"
-                coverage_desc = "Comprehensive 24x7 Onsite"
-            elif is_onsite:
-                offered_service_type = "Onsite"
-                coverage_desc = "Comprehensive Onsite"
-            else:
-                offered_service_type = "Standard"
-                coverage_desc = "Standard OEM"
-
-            yr_str = f"{int(val) if val.is_integer() else val}-Year"
-            warranty_terms = f"{yr_str} {coverage_desc} Warranty"
-            if val >= 5.0 and is_onsite:
-                bonus_perks.append(f"{yr_str} Extended Onsite Warranty")
-        except Exception:
-            pass
-
-    if warranty_years is None and not is_unreadable:
-        is_carry_in = any(k in clean_w_text.lower() for k in ["carry-in", "carry in"])
-        offered_service_type = "Carry-in" if is_carry_in else "Onsite"
-        coverage_desc = "Carry-in" if is_carry_in else "Comprehensive Onsite"
-        if any(k in clean_w_text.lower() for k in ["5-year warranty", "5 year warranty", "60 months warranty", "5-year comprehensive"]):
-            warranty_terms = f"5-Year {coverage_desc} Warranty"
-            warranty_years = 5.0
-            if not is_carry_in:
-                bonus_perks.append("5-Year Extended Onsite Warranty")
-        elif any(k in clean_w_text.lower() for k in ["3-year warranty", "3 year warranty", "36 months warranty", "3-year comprehensive"]):
-            warranty_terms = f"3-Year {coverage_desc} Warranty"
-            warranty_years = 3.0
-        elif any(k in clean_w_text.lower() for k in ["2-year warranty", "2 year warranty", "24 months warranty", "2 years warranty"]):
-            warranty_terms = f"2-Year {coverage_desc} Warranty"
-            warranty_years = 2.0
-        elif any(k in clean_w_text.lower() for k in ["1-year warranty", "1 year warranty", "12 months warranty"]):
-            warranty_terms = f"1-Year {coverage_desc} Warranty"
-            warranty_years = 1.0
-        elif any(k in clean_w_text.lower() for k in ["6-month warranty", "6 month warranty"]):
-            warranty_terms = "6-Month Carry-in Warranty (Sub-standard)"
-            warranty_years = 0.5
-            offered_service_type = "Carry-in"
+    warranty_evidence = []
+    if not is_unreadable:
+        clean = re.sub(r"\([^)]*(?:baseline|requirement)[^)]*\)", "", full_text, flags=re.I)
+        clean = re.sub(r"(?:required|mandatory|minimum|tender|rfp|baseline)\s+warranty[^\n.;]*", "", clean, flags=re.I)
+        # Retain a heading with its next line, but only if that line contains a duration.
+        clean = re.sub(r"(warranty[^\n:]*:)\s*\n\s*(?=\d)", r"\1 ", clean, flags=re.I)
+        passages = re.split(r"[;\n]|(?<!\d)\.(?!\d)", clean)
+        candidates = []
+        for passage in passages:
+            if not re.search(r"\bwarranty\b", passage, re.I):
+                continue
+            explicit_offer = bool(re.search(r"\b(?:offered|we offer|we provide|quoted|commitment)\b", passage, re.I))
+            if re.search(r"\b(?:required|mandatory|minimum|tender|rfp|baseline)\b", passage, re.I) and not explicit_offer:
+                continue
+            duration = re.search(r"(\d+(?:\.\d+)?)\s*[- ]?\s*(years?|yrs?|months?)\b", passage, re.I)
+            if not duration:
+                continue
+            # A duration must be adjacent to warranty/service wording, not general experience.
+            if re.search(r"\b(?:experience|standing|track record)\b", passage, re.I):
+                continue
+            val = float(duration.group(1)) / (12 if duration.group(2).lower().startswith('month') else 1)
+            carry = bool(re.search(r"\b(?:carry[ -]?in|off[ -]?site|workshop)\b", passage, re.I))
+            onsite = bool(re.search(r"\bon[ -]?site\b", passage, re.I))
+            denied_service = bool(re.search(r"(?:no|not|without)[^.;\n]{0,35}(?:on[ -]?site|carry[ -]?in)|(?:on[ -]?site|carry[ -]?in)[^.;\n]{0,25}(?:not|excluded)", passage, re.I))
+            service = None if denied_service or (carry and onsite) else 'Carry-in' if carry else 'Onsite' if onsite else None
+            for match in re.finditer(r"(\d+(?:\.\d+)?)\s*[- ]?\s*(years?|yrs?|months?)\b", passage, re.I):
+                duration_value = float(match.group(1)) / (12 if match.group(2).lower().startswith("month") else 1)
+                candidates.append((duration_value, service, passage.strip()))
+        explicit = [c for c in candidates if re.search(r"\b(?:offered|we offer|we provide|quoted|commitment)\b", c[2], re.I)]
+        candidates = explicit or candidates
+        values = {c[0] for c in candidates}
+        services = {c[1] for c in candidates if c[1]}
+        warranty_evidence = [c[2] for c in candidates]
+        if len(values) == 1:
+            warranty_years = next(iter(values))
+        if len(services) == 1:
+            offered_service_type = next(iter(services))
+        if len(values) > 1 or len(services) > 1:
+            warranty_years = None
+            offered_service_type = None
+            warranty_terms = "Conflicting warranty statements; officer review required"
+        elif warranty_years is not None:
+            warranty_terms = f"{warranty_years:g}-Year {offered_service_type or 'Service Unspecified'} Warranty"
 
     if "32gb" in full_text.lower() and "upgrade" in full_text.lower():
         bonus_perks.append("Free 32GB DDR5 RAM Upgrade (RFP asked for 16GB)")
@@ -694,6 +682,9 @@ def extract_document_data(file_path: str) -> dict:
         "vendor_name": vendor_name,
         "page_count": page_count,
         "is_unreadable": is_unreadable,
+        "extraction_complete": extraction_complete,
+        "ocr_only": bool(file_type.startswith("IMAGE") or (file_type == "PDF" and re.search(r"--- Page \d+ \(OCR\)", full_text) and not re.search(r"--- Page \d+ ---", full_text))),
+        "pages_with_extracted_text": sorted(covered_pages) if file_type == "PDF" else None,
         "gstin": gstin_matches[0] if gstin_matches else None,
         "all_gstins": gstin_matches,
         "gstin_expired": gstin_expired,
@@ -709,6 +700,7 @@ def extract_document_data(file_path: str) -> dict:
         "warranty": warranty_terms,
         "warranty_years": warranty_years,
         "offered_service_type": offered_service_type,
+        "warranty_evidence": warranty_evidence,
         "bonus_perks": bonus_perks,
         "local_content_pct": local_content_pct,
         "raw_text_length": len(full_text),

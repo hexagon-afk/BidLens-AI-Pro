@@ -8,8 +8,11 @@
     "start": "next start -p 3000"
   },
   "dependencies": {
-    "next": "^14.2.5",
+    "next": "15.5.27",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
+  },
+  "overrides": {
+    "postcss": "8.5.28"
   }
 }

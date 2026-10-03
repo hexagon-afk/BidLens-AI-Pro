@@ -38,7 +38,7 @@ class TestAuditRemediationGates(unittest.TestCase):
         bidder = {"turnover_cr": 2.0, "is_msme": False}
         
         # Tender 1: Requires 1.0 Cr turnover
-        res_lenient = evaluate_compliance(bidder, {"min_turnover_cr": 1.0, "min_warranty_years": 3, "min_local_content_pct": 50, "emd_required_inr": 100000})
+        res_lenient = evaluate_compliance(bidder, {"min_turnover_cr": 1.0, "min_warranty_years": 3, "required_service_type": "Onsite", "min_local_content_pct": 50, "emd_required_inr": 100000})
         t_lenient = [c for c in res_lenient if c["clause_id"] == "GFR-160-TO"][0]
         self.assertEqual(t_lenient["status"], "PASS")
 
@@ -95,7 +95,7 @@ class TestAuditRemediationGates(unittest.TestCase):
         async def run_test():
             payload = RunAuditPayload(
                 file_id="Bid_GlobalCorp_Rectified_ReEvaluation.pdf",
-                tender_requirements={"min_turnover_cr": 1.0, "min_warranty_years": 3, "min_local_content_pct": 50, "emd_required_inr": 100000}
+                tender_requirements={"min_turnover_cr": 1.0, "min_warranty_years": 3, "required_service_type": "Onsite", "min_local_content_pct": 50, "emd_required_inr": 100000}
             )
             audit_res = await trigger_audit(payload)
             self.assertEqual(audit_res["overall_status"], "COMPLIANT")
@@ -172,7 +172,8 @@ class TestAuditRemediationGates(unittest.TestCase):
         try:
             extracted = extract_document_data(temp_path)
             self.assertEqual(extracted.get("warranty_years"), 1.0)
-            self.assertEqual(extracted.get("warranty"), "1-Year Standard OEM Warranty")
+            self.assertIsNone(extracted.get("offered_service_type"))
+            self.assertIn("Service Unspecified", extracted.get("warranty"))
         finally:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
@@ -234,7 +235,7 @@ class TestAuditRemediationGates(unittest.TestCase):
         async def run_test():
             payload = RunAuditPayload(
                 file_id="Bid_GlobalCorp_Rectified_ReEvaluation.pdf",
-                tender_requirements={"min_turnover_cr": 1.0, "min_warranty_years": 3, "min_local_content_pct": 50, "emd_required_inr": 100000}
+                tender_requirements={"min_turnover_cr": 1.0, "min_warranty_years": 3, "required_service_type": "Onsite", "min_local_content_pct": 50, "emd_required_inr": 100000}
             )
             audit_res = await trigger_audit(payload)
             self.assertEqual(audit_res["overall_status"], "COMPLIANT")
@@ -334,7 +335,7 @@ class TestAuditRemediationGates(unittest.TestCase):
         async def run_test():
             payload = RunAuditPayload(
                 file_id="Bid_GlobalCorp_Rectified_ReEvaluation.pdf",
-                tender_requirements={"min_turnover_cr": 1.0, "min_warranty_years": 3, "min_local_content_pct": 50, "emd_required_inr": 100000}
+                tender_requirements={"min_turnover_cr": 1.0, "min_warranty_years": 3, "required_service_type": "Onsite", "min_local_content_pct": 50, "emd_required_inr": 100000}
             )
             audit_res = await trigger_audit(payload)
             self.assertIn("results", audit_res)
@@ -384,9 +385,9 @@ class TestAuditRemediationGates(unittest.TestCase):
             bids_dir = os.path.join(BACKEND_DIR, "data", "sample_bids")
             # 1. ApexLabs MSME
             apex_res = await run_full_audit(os.path.join(bids_dir, "Bid_ApexLabs_MSME.pdf"), tender_reqs)
-            self.assertEqual(apex_res["overall_status"], "COMPLIANT")
-            self.assertTrue(apex_res["is_compliant"])
-            self.assertEqual(apex_res["compliance_summary"]["exempt"], 2)
+            self.assertEqual(apex_res["overall_status"], "NEEDS_REVIEW")
+            self.assertFalse(apex_res["is_compliant"])
+            self.assertEqual(apex_res["compliance_summary"]["needs_review"], 2)
 
             # 2. MegaTech BigBrand
             mega_res = await run_full_audit(os.path.join(bids_dir, "Bid_MegaTech_BigBrand.pdf"), tender_reqs)
@@ -505,13 +506,9 @@ class TestAuditRemediationGates(unittest.TestCase):
 
         client = TestClient(app)
 
-        # Agent review endpoint
+        # No scripted success or tender-free audit may masquerade as a live LLM review.
         res = client.post("/audit/agent/review/Bid_MegaTech_BigBrand.pdf")
-        self.assertEqual(res.status_code, 200)
-        review = res.json().get("review", {})
-        self.assertIn("agent_trajectory", review)
-        self.assertGreater(len(review["agent_trajectory"]), 5)
-        self.assertEqual(review.get("officer_recommendation", {}).get("final_verdict"), "ACCEPT_FOR_FINANCIAL_OPENING")
+        self.assertEqual(res.status_code, 404)
 
         # Override trail endpoint
         trail_res = client.get("/audit/overrides/trail")
