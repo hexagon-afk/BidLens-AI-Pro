@@ -2,8 +2,10 @@
 import asyncio
 import hashlib
 import json
+import logging
 import os
 import re
+import uuid
 import httpx
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,6 +18,7 @@ DEFAULT_MODEL = "gemini-3.8-flash"
 MAX_TOOL_CALLS = 6
 MAX_MODEL_TURNS = 5
 REVIEW_TIMEOUT_SECONDS = 60
+LOGGER = logging.getLogger(__name__)
 
 
 class ReviewError(Exception):
@@ -28,6 +31,9 @@ class ReviewError(Exception):
 async def reject_provider_http_errors(response):
     """Surface service errors before the SDK follows long Retry-After headers."""
     messages = {
+        400: (502, "Google rejected the Gemini review request (HTTP 400). The backend request needs investigation; the audit was not changed."),
+        422: (502, "Google rejected the Gemini review request (HTTP 422). The backend request needs investigation; the audit was not changed."),
+        402: (503, "Google reported a Gemini billing or credit issue (HTTP 402). Check Google AI Studio; the audit was not changed."),
         429: (429, "Gemini quota or rate limit reached. Try later; the audit remains available."),
         401: (503, "Gemini rejected the configured API credentials. Check Google AI Studio."),
         403: (503, "Gemini rejected the configured API credentials or access. Check Google AI Studio."),
@@ -37,6 +43,8 @@ async def reject_provider_http_errors(response):
     if error is None and response.status_code >= 500:
         error = (502, "Gemini service is temporarily unavailable. The audit was not changed.")
     if error:
+        # Never log provider bodies, URLs, headers, keys, or submitted evidence.
+        LOGGER.warning("Gemini provider request failed: http_status=%d", response.status_code)
         await response.aclose()
         raise ReviewError(*error)
 
@@ -140,6 +148,7 @@ class EvidenceReviewAgent:
     def __init__(self, client=None, model=None):
         self.client = client
         self.model = model
+        self._stage = "initialization"
 
     async def review_bid_submission(self, audit, clause_id):
         config = get_gemini_config()
@@ -165,21 +174,33 @@ class EvidenceReviewAgent:
         except ReviewError:
             raise
         except Exception as exc:
-            # Never expose SDK messages/URLs that could contain credentials or document text.
-            code = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+            # Log only safe identifiers: SDK messages and traceback URLs can expose secrets.
+            raw_code = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+            code = int(raw_code) if isinstance(raw_code, (int, str)) and str(raw_code).isdigit() and len(str(raw_code)) == 3 else None
+            reference = uuid.uuid4().hex[:12]
+            exception_type = re.sub(r"[^A-Za-z0-9_]", "", type(exc).__name__)[:80]
+            LOGGER.warning("Gemini review failed: reference=%s stage=%s exception_type=%s http_status=%s",
+                           reference, self._stage, exception_type, code)
+            if code in (400, 422):
+                raise ReviewError(502, f"Google rejected the Gemini review request (HTTP {code}). The backend request needs investigation; the audit was not changed.") from exc
+            if code == 402:
+                raise ReviewError(503, "Google reported a Gemini billing or credit issue (HTTP 402). Check Google AI Studio; the audit was not changed.") from exc
+            if isinstance(exc, httpx.RequestError):
+                raise ReviewError(502, f"The backend could not connect to Gemini. Reference: {reference}. The audit was not changed.") from exc
             if code == 429:
                 raise ReviewError(429, "Gemini quota or rate limit reached. Try later; the audit remains available.") from exc
             if code in (401, 403):
                 raise ReviewError(503, "Gemini rejected the configured API credentials or access. Check Google AI Studio.") from exc
             if code == 404:
                 raise ReviewError(503, "The configured Gemini model is unavailable for this account. Check GEMINI_MODEL.") from exc
-            raise ReviewError(502, "Gemini could not complete a valid evidence review. The audit was not changed.") from exc
+            raise ReviewError(502, f"Gemini review encountered an unexpected backend or SDK error. Reference: {reference}. Check backend logs; the audit was not changed.") from exc
         finally:
             if owned_client:
                 await client.aio.aclose()
                 client.close()
 
     async def _run(self, client, model, audit, clause):
+        self._stage = "prepare_evidence"
         records = build_evidence_index(audit)
         inspected = {}
         trace = []
@@ -195,9 +216,11 @@ class EvidenceReviewAgent:
             final_turn = ({"get_clause_result", "search_evidence", "read_evidence"}.issubset(used_tools) and expected_sources.issubset(inspected_sources)) or turn == MAX_MODEL_TURNS - 1
             if final_turn:
                 history.append({"type": "user_input", "content": [{"type": "text", "text": "Evidence gathering is finished. Produce the final advisory JSON now using only inspected excerpts. Report any remaining gaps explicitly. No more tool calls are available."}]})
+            self._stage = f"provider_turn_{turn + 1}"
             response = await asyncio.wait_for(client.aio.interactions.create(
                 model=model, store=False, input=history, system_instruction=SYSTEM_INSTRUCTION,
                 tools=[] if final_turn else TOOLS, generation_config={"max_output_tokens": 3500, "thinking_level": "low"}, timeout=25.0), timeout=25.0)
+            self._stage = f"process_turn_{turn + 1}"
             if response.status not in ("requires_action", "completed"):
                 raise ReviewError(502, "Gemini returned an incomplete or unsuccessful response. Review discarded.")
             steps = getattr(response, "steps", []) or []
@@ -220,6 +243,7 @@ class EvidenceReviewAgent:
                 raise ReviewError(502, "Gemini did not inspect the rule and evidence tools. No scripted review was substituted.")
             if not {r["source"] for r in records.values()}.issubset({r["source"] for r in inspected.values()}):
                 raise ReviewError(502, "Gemini did not inspect all available source documents. Review discarded; please retry.")
+            self._stage = "validate_advisory"
             try:
                 advisory = Advisory.model_validate_json(response.output_text)
             except (ValidationError, TypeError, AttributeError) as exc:

@@ -334,7 +334,7 @@ class AgentReviewPayload(BaseModel):
 def agent_configuration():
     config = get_gemini_config()
     return {"provider": "Google Gemini", "model": config["model"], "configured": bool(config["api_key"]),
-            "advisory_only": True, "cloud_processing": True, "max_tool_calls": 6,
+            "advisory_only": True, "cloud_processing": True, "max_tool_calls": 6, "diagnostics_version": 2,
             "notice": "Optional cloud review sends selected audit context and retrieved document excerpts to Google. Use synthetic demo documents; free-tier data may be used for product improvement."}
 
 

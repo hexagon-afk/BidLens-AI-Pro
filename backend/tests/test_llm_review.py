@@ -164,6 +164,7 @@ def test_configuration_endpoint_never_returns_key(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "hidden-test-key")
     response = TestClient(app).get("/audit/agent/config")
     assert response.json()["configured"] is True
+    assert response.json()["diagnostics_version"] == 2
     assert "hidden-test-key" not in response.text
 
 
@@ -209,3 +210,56 @@ def test_realistic_quota_header_has_no_hidden_retry_delay(monkeypatch):
     assert options[0]["retry_options"]["attempts"] == 0
     assert options[0]["async_client_args"]["event_hooks"]["response"] == [llm_agent.reject_provider_http_errors]
     assert len(requests) == 1
+
+
+@pytest.mark.parametrize("status,expected_status,fragment", [(400, 502, "HTTP 400"), (422, 502, "HTTP 422"), (402, 503, "billing or credit")])
+def test_provider_request_and_credit_errors_are_distinct_and_safe(status, expected_status, fragment, caplog):
+    data = sample_audit()
+    original = copy.deepcopy(data)
+    with pytest.raises(ReviewError) as caught:
+        run_sdk_review(data=data, http_status=status)
+    assert caught.value.status_code == expected_status
+    assert fragment in caught.value.message
+    assert data == original
+    assert f"http_status={status}" in caplog.text
+    assert "secret-content-must-not-leak" not in caplog.text + caught.value.message
+    assert "test-key-not-live" not in caplog.text + caught.value.message
+
+
+@pytest.mark.parametrize("failure", [RuntimeError("secret-key-and-document-must-not-leak"), httpx.ConnectError("secret-key-and-document-must-not-leak")])
+def test_unexpected_and_connection_failures_have_safe_correlated_diagnostics(failure, caplog):
+    async def fail(**kwargs):
+        raise failure
+    provider = SimpleNamespace(aio=SimpleNamespace(interactions=SimpleNamespace(create=fail)))
+    data = sample_audit()
+    original = copy.deepcopy(data)
+    with pytest.raises(ReviewError) as caught:
+        asyncio.run(EvidenceReviewAgent(client=provider).review_bid_submission(data, "SPEC-WARRANTY"))
+    assert caught.value.status_code == 502
+    assert data == original
+    reference = caught.value.message.split("Reference: ")[1].split(".")[0]
+    assert len(reference) == 12
+    assert f"reference={reference}" in caplog.text
+    assert "stage=provider_turn_1" in caplog.text
+    assert f"exception_type={type(failure).__name__}" in caplog.text
+    assert "secret-key-and-document-must-not-leak" not in caplog.text + caught.value.message
+    assert "Offered warranty" not in caplog.text
+    assert "Traceback" not in caplog.text
+    if isinstance(failure, httpx.ConnectError):
+        assert "could not connect" in caught.value.message
+    else:
+        assert "unexpected backend or SDK error" in caught.value.message
+
+
+def test_sdk_string_status_code_is_still_recognized_as_quota(caplog):
+    class ProviderFailure(Exception):
+        status_code = "429"
+    async def fail(**kwargs):
+        raise ProviderFailure("secret-key-and-document-must-not-leak")
+    provider = SimpleNamespace(aio=SimpleNamespace(interactions=SimpleNamespace(create=fail)))
+    with pytest.raises(ReviewError) as caught:
+        asyncio.run(EvidenceReviewAgent(client=provider).review_bid_submission(sample_audit(), "SPEC-WARRANTY"))
+    assert caught.value.status_code == 429
+    assert "quota or rate limit" in caught.value.message
+    assert "http_status=429" in caplog.text
+    assert "secret-key-and-document-must-not-leak" not in caplog.text + caught.value.message
