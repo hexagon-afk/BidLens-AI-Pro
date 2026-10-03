@@ -11,6 +11,7 @@ Coordinates:
 import asyncio
 import os
 from orchestrator.ai_processing import extract_document_data
+from security.sha256_audit import hash_file
 from orchestrator.rule_engine import evaluate_compliance
 from orchestrator.govt_verify import verify_government_credentials
 from evidence_risk.graph_engine import build_compliance_knowledge_graph
@@ -54,6 +55,7 @@ async def run_full_audit(file_path: str, tender_requirements: dict = None) -> di
     return {
         "file_info": {
             "filename": extracted["filename"],
+            "source_sha256": hash_file(file_path),
             "file_type": extracted["file_type"],
             "vendor_name": extracted["vendor_name"],
             "page_count": extracted["page_count"],

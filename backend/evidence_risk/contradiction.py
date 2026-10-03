@@ -29,10 +29,10 @@ def detect_cross_document_contradictions(extracted_data: dict, govt_verification
         contradictions.append({
             "contradiction_id": "CONTRA-PAN-01",
             "type": "CROSS_ATTACHMENT_PAN_MISMATCH",
-            "severity": "CRITICAL",
-            "title": "Conflicting PAN Numbers in Attachments",
-            "description": f"Found multiple conflicting PAN numbers ({', '.join(unique_pans)}) between the Bid Cover Letter and the OEM Authorization / Annexure documents.",
-            "impact": "High risk of fraudulent or unauthorized third-party proxy bidding.",
+            "severity": "HIGH",
+            "title": "Multiple PANs Require Entity Review",
+            "description": f"Found multiple PANs ({', '.join(sorted(unique_pans))}). Bidder, OEM and other entity roles have not been resolved.",
+            "impact": "Officer must check entity roles before determining whether a contradiction exists.",
             "remedy": "Provide legal affidavit explaining entity relationship and submit unified PAN card."
         })
 
@@ -42,10 +42,10 @@ def detect_cross_document_contradictions(extracted_data: dict, govt_verification
         contradictions.append({
             "contradiction_id": "CONTRA-GST-PAN-02",
             "type": "GSTIN_EMBEDDED_PAN_MISMATCH",
-            "severity": "CRITICAL",
-            "title": "GSTIN Entity Mismatch with Declared PAN",
+            "severity": "HIGH" if len(unique_pans) > 1 else "CRITICAL",
+            "title": "GSTIN / PAN Correspondence Requires Review",
             "description": note,
-            "impact": "The tax registration does not belong to the legal entity submitting the bid proposal.",
+            "impact": "Verify the PAN assigned to the bidder against the GSTIN; document entity roles may be unresolved.",
             "remedy": "Submit GSTIN registration certificate issued strictly in the name of the PAN holder."
         })
 
@@ -88,7 +88,7 @@ def detect_cross_document_contradictions(extracted_data: dict, govt_verification
         })
 
     # ── 6. MSME Claim without Verifiable Udyam Certificate ────
-    msme_claimed_in_text = ("msme" in raw_text or "micro enterprise" in raw_text or "small enterprise" in raw_text or "udyam" in raw_text)
+    msme_claimed_in_text = is_msme
     if msme_claimed_in_text and not udyam:
         contradictions.append({
             "contradiction_id": "CONTRA-FRAUD-UDYAM-06",
@@ -100,6 +100,11 @@ def detect_cross_document_contradictions(extracted_data: dict, govt_verification
             "remedy": "Provide official Udyam Registration Certificate downloaded from udyamregistration.gov.in."
         })
 
+    if extracted_data.get("ocr_only"):
+        for finding in contradictions:
+            if finding.get("severity") == "CRITICAL":
+                finding["severity"] = "HIGH"
+                finding["impact"] = "OCR-derived discrepancy requires confirmation from the source image before deciding eligibility."
     return contradictions
 
 
@@ -122,7 +127,7 @@ def calculate_claim_integrity_score(extracted_data: dict, contradictions: list) 
     
     if score >= 85:
         tier = "HIGH INTEGRITY"
-        desc = "High evidentiary substantiation. Statutory identifiers verified against public databases with consistent documentation."
+        desc = "High evidentiary substantiation. No configured contradiction checks triggered. Identity checks are offline and do not verify public database records."
     elif score >= 60:
         tier = "MODERATE INTEGRITY"
         desc = "Minor discrepancies or missing statutory annexures detected. Supervisory review recommended before tender award."

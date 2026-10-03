@@ -43,7 +43,7 @@ class TestKnowledgeGraphEngine(unittest.TestCase):
         self.assertIn("governs", relations)
         self.assertIn("mandates_evidence", relations)
         self.assertIn("justifies_decision", relations)
-        self.assertIn("cross_verified_with_portal", relations)
+        self.assertIn("checked_offline", relations)
 
 if __name__ == '__main__':
     unittest.main()

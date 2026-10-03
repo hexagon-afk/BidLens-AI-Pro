@@ -1,8 +1,5 @@
-"""
-Official Black & White PDF Audit Dossier Generator - Layer 5
-Produces a formal, air-gapped, government-grade black-and-white compliance dossier
-with tight professional typography, clean table structures, manual physical sign-off box,
-and an integrated Supervisory Override & Justification Log without awkward page breaks.
+"""Prototype procurement review reports with implemented checks and officer notes.
+Reports do not certify eligibility, authenticity or legal compliance.
 """
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
@@ -14,6 +11,18 @@ from reportlab.platypus import (
 from reportlab.pdfgen import canvas
 import os
 import datetime
+from xml.sax.saxutils import escape
+
+
+def escape_report_values(value):
+    """Render supplied evidence and officer notes as text, never ReportLab markup."""
+    if isinstance(value, str):
+        return escape(value)
+    if isinstance(value, dict):
+        return {key: escape_report_values(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [escape_report_values(item) for item in value]
+    return value
 
 
 class OfficialReportCanvas(canvas.Canvas):
@@ -38,12 +47,13 @@ class OfficialReportCanvas(canvas.Canvas):
         # Official Header (Pure Black & White)
         self.setFont("Helvetica-Bold", 8)
         self.setFillColor(colors.black)
-        self.drawString(40, 755, "BIDLENS AI - AUTOMATED COMPLIANCE REVIEW DOSSIER")
+        self.drawString(40, 755, "BIDLENS AI - PROCUREMENT REVIEW REPORT")
         self.setFont("Helvetica", 8)
-        self.drawRightString(572, 755, "PROTOTYPE DEMONSTRATION RECORD - FOR OFFICER REVIEW")
+        self.setFont("Helvetica", 6)
+        self.drawRightString(572, 741, "PROTOTYPE DEMONSTRATION RECORD - FOR OFFICER REVIEW")
         self.setStrokeColor(colors.black)
         self.setLineWidth(0.75)
-        self.line(40, 748, 572, 748)
+        self.line(40, 736, 572, 736)
 
         # Official Footer (Pure Black & White)
         self.line(40, 36, 572, 36)
@@ -62,9 +72,13 @@ def generate_certified_audit_pdf(
     **kwargs
 ) -> str:
     """
-    Builds a clean, official black-and-white PDF audit report with integrated Supervisory Override Log
+    Builds a prototype procurement review report with the recorded officer decision log
     and manual physical sign-off box with smooth document flow (no awkward empty page gaps).
     """
+    audit_data = escape_report_values(audit_data)
+    officer_overrides = escape_report_values(officer_overrides)
+    officer_name = escape_report_values(officer_name)
+    officer_designation = escape_report_values(officer_designation)
     out_dir = os.path.dirname(os.path.abspath(output_filepath))
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
@@ -74,7 +88,7 @@ def generate_certified_audit_pdf(
         pagesize=letter,
         leftMargin=36,
         rightMargin=36,
-        topMargin=44,
+        topMargin=62,
         bottomMargin=44
     )
 
@@ -153,7 +167,7 @@ def generate_certified_audit_pdf(
     risk_score_pct = (risk_score_raw if risk_score_raw is not None else 0.0) * 100
 
     # ── 1. Document Title & Header ────────────────────────────
-    story.append(Paragraph("BID COMPLIANCE & EVALUATION REVIEW DOSSIER (PROTOTYPE)", title_style))
+    story.append(Paragraph("PROCUREMENT REVIEW REPORT (PROTOTYPE)", title_style))
     story.append(Paragraph(f"Tender Ref: {active_tender_id} | Evaluation Timestamp: {datetime.datetime.now().strftime('%d-%b-%Y %H:%M:%S')}", subtitle_style))
     story.append(HRFlowable(width="100%", thickness=1, color=colors.black, spaceBefore=1, spaceAfter=4))
 
@@ -171,12 +185,12 @@ def generate_certified_audit_pdf(
             Paragraph(f"<b>Submission File:</b> {filename}", body_style),
         ],
         [
-            Paragraph(f"<b>Compliance Verdict:</b> <b>{status_text}</b>", body_style),
-            Paragraph(f"<b>Rejection Risk Tier:</b> <b>{risk_tier}</b> (Score: {risk_score_pct:.0f}%)", body_style),
+            Paragraph(f"<b>Outcome of Evaluated Checks:</b> <b>{status_text}</b>", body_style),
+            Paragraph(f"<b>Heuristic Review Risk Tier:</b> <b>{risk_tier}</b> (Index: {risk_score_pct:.0f}/100; not a probability)", body_style),
         ],
         [
             Paragraph(f"<b>Clauses Evaluated ({total_clauses}):</b> Pass: {passed} | Exempt: {exempt} | Fail: {failed} | Review: {needs_review} | N/A: {na}", body_style),
-            Paragraph(f"<b>Govt Verification Sync:</b> {govt.get('overall_govt_verification', 'UNVERIFIED (OFFLINE PROTOTYPE)')}", body_style),
+            Paragraph(f"<b>Offline Identity Checks:</b> {govt.get('overall_govt_verification', 'UNVERIFIED (OFFLINE PROTOTYPE)')}", body_style),
         ]
     ]
 
@@ -226,7 +240,7 @@ def generate_certified_audit_pdf(
     # ── Government Portal Gateway Cross-Verification ──────────
     gateways = govt.get("gateways", [])
     if gateways:
-        story.append(Paragraph("Government Gateway & Statutory Identifier Verification (Offline Prototype Mode)", h1_style))
+        story.append(Paragraph("Offline Identity Checks & Unverified Registry Status", h1_style))
         gw_table_data = [
             [
                 Paragraph("<b>Portal / Registry</b>", body_bold),
@@ -240,7 +254,7 @@ def generate_certified_audit_pdf(
             gw_table_data.append([
                 Paragraph(gw.get("name", ""), body_style),
                 Paragraph(f"<b>{gw.get('status', '')}</b>", body_style),
-                Paragraph(" | ".join(desc_items) if desc_items else "Portal records verified", body_style)
+                Paragraph(" | ".join(desc_items) if desc_items else "Live registry unverified", body_style)
             ])
         t_gw = Table(gw_table_data, colWidths=[2.2*inch, 1.8*inch, 3.4*inch])
         t_gw.setStyle(TableStyle([
@@ -256,7 +270,7 @@ def generate_certified_audit_pdf(
         story.append(Spacer(1, 2))
 
     # ── 5. Clause-by-Clause Compliance Matrix (Black & White) ─
-    story.append(Paragraph("Clause-by-Clause GFR Compliance Verification Matrix", h1_style))
+    story.append(Paragraph("Implemented Requirement Checks & Evidence Summaries", h1_style))
     clause_table_data = [
         [
             Paragraph("<b>Clause ID</b>", body_bold),
@@ -267,15 +281,15 @@ def generate_certified_audit_pdf(
     ]
 
     for c in clauses:
-        st = c.get("status", "PENDING")
+        st = c.get("status", "PENDING").replace("_", " ")
         cid = c.get("clause_id")
         # Check if overridden by officer
         if officer_overrides and cid in officer_overrides:
-            st = f"{officer_overrides[cid].get('status', st)} (Overridden)"
+            st = officer_overrides[cid].get("status", st).replace("_", " ") + "<br/><font size='6'>Officer decision</font>"
 
-        reg_ref = str(c.get('regulation_ref', 'N/A') or 'N/A').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-        evidence_txt = str(c.get('evidence', 'N/A') or 'N/A').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-        c_name = str(c.get("clause_name", "") or "").replace('&', '&amp;')
+        reg_ref = str(c.get('regulation_ref', 'N/A') or 'N/A')
+        evidence_txt = str(c.get('evidence', 'N/A') or 'N/A')
+        c_name = str(c.get("clause_name", "") or "")
         clause_table_data.append([
             Paragraph(f"<b>{cid}</b>", body_style),
             Paragraph(c_name, body_style),
@@ -283,7 +297,7 @@ def generate_certified_audit_pdf(
             Paragraph(f"<b>Rule:</b> {reg_ref}<br/><b>Evidence:</b> {evidence_txt}", body_style)
         ])
 
-    t_clauses = Table(clause_table_data, colWidths=[1.0*inch, 1.8*inch, 0.9*inch, 3.7*inch])
+    t_clauses = Table(clause_table_data, colWidths=[1.12*inch, 1.68*inch, 0.9*inch, 3.7*inch])
     t_clauses.setStyle(TableStyle([
         ('BOX', (0,0), (-1,-1), 1, colors.black),
         ('INNERGRID', (0,0), (-1,-1), 0.5, colors.black),
@@ -298,7 +312,7 @@ def generate_certified_audit_pdf(
 
     # ── 6. Contradictions & Discrepancies (If any) ────────────
     if contradictions:
-        story.append(Paragraph("Cross-Document Discrepancies & Risk Findings", h1_style))
+        story.append(Paragraph("Configured Discrepancy Checks Within Submitted File", h1_style))
         contra_data = [
             [
                 Paragraph("<b>Discrepancy Title</b>", body_bold),
@@ -331,11 +345,11 @@ def generate_certified_audit_pdf(
 
     sign_off_data = [
         [
-            Paragraph(f"<b>Evaluated By:</b> BidLens AI Sovereign Engine", body_style),
+            Paragraph(f"<b>Evaluated By:</b> BidLens implemented checks", body_style),
             Paragraph(f"<b>Procurement Officer:</b> {eval_officer}", body_style),
         ],
         [
-            Paragraph("<b>Integrity Check:</b> SHA-256 Digest Computed (Prototype Integrity Tracking)", body_style),
+            Paragraph(f"<b>Source SHA-256:</b> {audit_data.get('file_info', {}).get('source_sha256', 'NOT RECORDED')}", body_style),
             Paragraph(f"<b>Designation:</b> {eval_designation}", body_style),
         ],
         [
@@ -344,14 +358,14 @@ def generate_certified_audit_pdf(
         ],
         [
             Paragraph(
-                "<b>Manual Physical Sign-Off & Official Seal:</b><br/><br/>"
+                "<b>Optional Manual Sign-Off:</b><br/><br/>"
                 "___________________________________________________<br/>"
-                "<i>Physical Signature & Official Stamp of Officer (Sign manually on printout)</i>",
+                "<i>Officer signature on printout (not digitally authenticated)</i>",
                 body_style
             ),
             Paragraph(
                 "<b>Procurement Advisory Notice:</b><br/>"
-                "This document is an automated procurement evaluation report generated under GFR 2017 baseline rules for procurement officer review. "
+                "This report covers implemented checks against supplied tender criteria. It does not authenticate documents, verify live registries or certify legal eligibility. "
                 "Any supervisory override is recorded below with officer justification.",
                 body_style
             )
@@ -373,35 +387,45 @@ def generate_certified_audit_pdf(
     # ── 8. SUPERVISORY OVERRIDE & STATUTORY JUSTIFICATION TRAIL (Seamless Flow) ──
     # Placed directly following the sign-off block without artificial page breaks!
     if officer_overrides and len(officer_overrides) > 0:
+        override_intro_start = len(story)
         story.append(Spacer(1, 4))
-        story.append(Paragraph("SUPERVISORY OVERRIDE & STATUTORY JUSTIFICATION LOG", title_style))
-        story.append(Paragraph(f"Vendor: {vendor_name} | Evaluating Officer: {eval_officer} ({eval_designation}) | Statutory Accountability Trail", subtitle_style))
+        story.append(Paragraph("RECORDED OFFICER DECISIONS & JUSTIFICATIONS", title_style))
+        story.append(Paragraph(f"Vendor: {vendor_name} | Evaluating Officer: {eval_officer} ({eval_designation}) | Local Decision Record", subtitle_style))
         story.append(HRFlowable(width="100%", thickness=1, color=colors.black, spaceBefore=1, spaceAfter=4))
 
         story.append(Paragraph(
-            "<b>Mandatory Legal Accountability Notice:</b> In accordance with public procurement guidelines, "
-            "any supervisory override of automated GFR criteria requires recorded written justification with officer identification.",
+            "<b>Prototype Decision Record:</b> "
+            "This application requires a written justification for a changed check. Officer names are supplied display details; the record is not authenticated or cryptographically tamper-evident.",
             callout_style
         ))
         story.append(Spacer(1, 3))
+        story[override_intro_start:] = [KeepTogether(story[override_intro_start:])]
 
         override_table_data = [
             [
                 Paragraph("<b>Clause / Requirement</b>", body_bold),
                 Paragraph("<b>Original</b>", body_bold),
                 Paragraph("<b>Override Verdict</b>", body_bold),
-                Paragraph("<b>Mandatory Written Justification & Legal Basis</b>", body_bold),
+                Paragraph("<b>Recorded Written Justification</b>", body_bold),
                 Paragraph("<b>Timestamp</b>", body_bold)
             ]
         ]
 
         for cid, odata in officer_overrides.items():
+            timestamp = odata.get("timestamp", "Not recorded")
+            try:
+                stamp = datetime.datetime.fromisoformat(timestamp)
+                if stamp.tzinfo is not None:
+                    stamp = stamp.astimezone(datetime.timezone.utc)
+                    timestamp = stamp.strftime("%d-%b-%Y<br/>%H:%M:%S UTC")
+            except (TypeError, ValueError):
+                pass
             override_table_data.append([
                 Paragraph(f"<b>{odata.get('clause_name', cid)}</b><br/>({cid})", body_style),
                 Paragraph(f"{odata.get('original_status', 'N/A')}", body_style),
                 Paragraph(f"<b>{odata.get('status', 'OVERRIDDEN')}</b>", body_style),
                 Paragraph(f"{odata.get('justification', 'No justification provided.')}", body_style),
-                Paragraph(f"{odata.get('timestamp', datetime.datetime.now().strftime('%d-%b-%Y %H:%M'))}", body_style)
+                Paragraph(timestamp, body_style)
             ])
 
         t_over = Table(override_table_data, colWidths=[1.5*inch, 0.8*inch, 1.0*inch, 2.9*inch, 1.2*inch])
@@ -422,11 +446,11 @@ def generate_certified_audit_pdf(
         p2_sign_data = [
             [
                 Paragraph(
-                    f"<b>Supervisory Officer Physical Attestation for Overrides:</b><br/>"
-                    f"I, <b>{eval_officer}</b> ({eval_designation}), hereby certify under official accountability that the justifications "
-                    f"and overrides recorded above are strictly in accordance with GFR 2017 and authorized procurement delegations.<br/><br/>"
+                    f"<b>Optional Officer Acknowledgement:</b><br/>"
+                    f"I, <b>{eval_officer}</b> ({eval_designation}), acknowledge that the justifications "
+                    f"and decisions above reflect the recorded review. This prototype does not certify legal compliance or delegated authority.<br/><br/>"
                     f"_____________________________________________&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Date: ____________________<br/>"
-                    f"<i>Manual Signature & Official Stamp of Supervisory Officer</i>",
+                    f"<i>Manual officer signature (not digitally authenticated)</i>",
                     body_style
                 )
             ]

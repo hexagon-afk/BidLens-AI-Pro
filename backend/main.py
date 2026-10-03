@@ -27,17 +27,13 @@ tags_metadata = [
 ]
 
 app = FastAPI(
-    title="BidLens AI — Autonomous GeM Procurement Auditor API",
+    title="BidLens AI — Procurement Review Prototype API",
     description="""
-## Smart India Hackathon (SIH) 2026 — Problem Statement ID: 26100
-
-BidLens AI is an intelligent procurement compliance auditor designed for the **Government e-Marketplace (GeM)**.
-
-### Key Architectural Pillars:
-* **Deterministic GFR 2017 Rule Engine:** Zero-hallucination compliance audits for Rules 149, 160, 170 and MSME Order 2012.
-* **Cross-Document Contradiction Detector:** Detects contradictory PANs, expired GSTINs, and inflated turnover claims across attachments.
-* **100% Sovereign Edge Ready:** Operates fully air-gapped with zero external cloud retention.
-* **Cryptographic Tamper-Detection:** Immediate SHA-256 fingerprinting on document receipt.
+BidLens is a procurement decision-support prototype. It extracts document text and applies
+implemented deterministic checks to supplied tender criteria. RapidOCR supports scanned input.
+Missing or incomplete evidence is referred for officer review. Identity checks validate syntax
+and checksums offline; government registries are not connected. Optional Gemini cloud review
+uses bounded read-only evidence tools when a server API key is configured and the officer consents. Final eligibility and procurement decisions remain with the officer.
 """,
     version="1.0.0",
     contact={

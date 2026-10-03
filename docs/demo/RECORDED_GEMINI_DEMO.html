@@ -1,0 +1,125 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>BidLens recorded Gemini rehearsal</title><style>body{font:16px/1.6 system-ui,sans-serif;margin:0;background:#f5f5f1;color:#172b46}main{max-width:960px;margin:36px auto;padding:28px;background:white;border-radius:16px}h1{font-size:28px}aside{background:#fff3d2;border:1px solid #d3aa37;padding:16px;border-radius:8px}small{color:#536375}blockquote{margin:16px 0;padding:14px 18px;border-left:4px solid #172b46;background:#f0f4f8}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.5 ui-monospace,monospace}summary{cursor:pointer;font-weight:600;padding:12px 0}details{border-top:1px solid #d6dde5}</style><main><aside><strong>RECORDED REHEARSAL — THIS PAGE DOES NOT MAKE A LIVE API CALL.</strong><br>This is a saved successful response from synthetic sample documents. It is a connectivity backup, not a procurement approval.</aside><h1>BidLens AI evidence-review rehearsal</h1><p>gemini-3.8-flash · SPEC-WARRANTY · 03 October 2026, 07:01:00 AM IST</p><p><strong>Machine check:</strong> PASS · <strong>AI role:</strong> advisory only</p><h2>SUPPORTS RULE RESULT</h2><p>MegaTech Solutions International Private Limited declared a 3-Year Comprehensive Onsite OEM Warranty in its bid submission, which satisfies the evaluated tender requirement of a minimum 3-year onsite warranty.</p><p>The bidder explicitly commits to a 3-Year Comprehensive Onsite OEM Warranty on Page 1 of its bid submission.</p><h2>Inspected evidence</h2><blockquote><small>BID · Bid_MegaTech_BigBrand.pdf · Page 1</small><pre>Warranty SLA:
+3-Year Comprehensive Onsite OEM Warranty</pre></blockquote><h2>Evidence gaps</h2><ul><li>Detailed breakdown of OEM warranty support terms, response times (MTTR), and comprehensive coverage scope across individual hardware components.</li></ul><h2>Officer follow-up</h2><ul><li>Does the bidder provide an OEM-signed Warranty Commitment Letter confirming 24x7 coverage and the required 4-hour response time SLA?</li></ul><h2>Executed tool trace</h2><details><summary>1. get_clause_result</summary><pre>{
+  &quot;arguments&quot;: {},
+  &quot;result&quot;: {
+    &quot;selected_check&quot;: {
+      &quot;clause_id&quot;: &quot;SPEC-WARRANTY&quot;,
+      &quot;clause_name&quot;: &quot;Warranty Duration &amp; Service&quot;,
+      &quot;status&quot;: &quot;PASS&quot;,
+      &quot;regulation_ref&quot;: &quot;Tender Technical Specifications (Warranty SLA)&quot;,
+      &quot;evidence&quot;: &quot;Declared 3-Year Onsite warranty meets evaluated duration and location requirements.&quot;,
+      &quot;remedy&quot;: null
+    },
+    &quot;tender_requirements&quot;: {
+      &quot;budget_inr&quot;: 5000000.0,
+      &quot;min_turnover_cr&quot;: 1.5,
+      &quot;emd_required_inr&quot;: 100000.0,
+      &quot;min_local_content_pct&quot;: 50.0,
+      &quot;min_warranty_years&quot;: 3.0,
+      &quot;required_service_type&quot;: &quot;Onsite&quot;
+    },
+    &quot;requirement_source&quot;: &quot;PARSED_TENDER&quot;,
+    &quot;ocr_only&quot;: false,
+    &quot;extraction_complete&quot;: true,
+    &quot;text_index_truncated&quot;: false,
+    &quot;tender_text_available&quot;: true,
+    &quot;live_registry_verification&quot;: false,
+    &quot;document_authenticity_verified&quot;: false
+  }
+}</pre></details><details><summary>2. search_evidence</summary><pre>{
+  &quot;arguments&quot;: {
+    &quot;query&quot;: &quot;warranty&quot;
+  },
+  &quot;result&quot;: {
+    &quot;matches&quot;: [
+      {
+        &quot;evidence_id&quot;: &quot;BID-1&quot;,
+        &quot;source&quot;: &quot;BID&quot;,
+        &quot;page&quot;: 1,
+        &quot;preview&quot;: &quot;inancial Years)\nLocal Content %:\n58% Class-1 Local Supplier\nWarranty SLA:\n3-Year Comprehensive Onsite OEM Warranty\nGOVERNMENT OF INDIA - GeM BID PORTAL\nOFFICIAL PROCUREMENT DOCUMENTATION\nGeM Procurement Standard Specification | Statutory Compliance Certified\nPage 1 of 12&quot;
+      },
+      {
+        &quot;evidence_id&quot;: &quot;BID-2&quot;,
+        &quot;source&quot;: &quot;BID&quot;,
+        &quot;page&quot;: 1,
+        &quot;preview&quot;: &quot;rehensive Onsite OEM Warranty\nGOVERNMENT OF INDIA - GeM BID PORTAL\nOFFICIAL PROCUREMENT DOCUMENTATION\nGeM Procurement Standard Specification | Statutory Compliance Certified\nPage 1 of 12&quot;
+      },
+      {
+        &quot;evidence_id&quot;: &quot;TENDER-14&quot;,
+        &quot;source&quot;: &quot;TENDER&quot;,
+        &quot;page&quot;: 1,
+        &quot;preview&quot;: &quot;Minimum 50% Domestic Value Addition Required)\nComprehensive Warranty SLA:\n3-Year Comprehensive Onsite 24x7 OEM Warranty with 4-hr MTTR Response\nConsignee Delivery Location:\nCPCL Central IT Complex, Chennai &amp; R&quot;
+      },
+      {
+        &quot;evidence_id&quot;: &quot;TENDER-15&quot;,
+        &quot;source&quot;: &quot;TENDER&quot;,
+        &quot;page&quot;: 1,
+        &quot;preview&quot;: &quot;Minimum 50% Domestic Value Addition Required)\nComprehensive Warranty SLA:\n3-Year Comprehensive Onsite 24x7 OEM Warranty with 4-hr MTTR Response\nConsignee Delivery Location:\nCPCL Central IT Complex, Chennai &amp; Regional Data Centers\nDelivery Timeline:\n30 Calendar Days from Notification of Award (NOA)\nG&quot;
+      },
+      {
+        &quot;evidence_id&quot;: &quot;TENDER-22&quot;,
+        &quot;source&quot;: &quot;TENDER&quot;,
+        &quot;page&quot;: 5,
+        &quot;preview&quot;: &quot;SECTION IV: WARRANTY COMMITMENT &amp; SERVICE LEVEL AGREEMENT\n1. Comprehensive Onsite Warranty: Minimum 3-Year 24x7 comprehensive onsite warranty covering all hardware parts, power supplies,\nmotherboard, display panel, keyboard, and mouse.\n2. Mean Time to Respond (MTTR): Maximum 4 hours from incident lo&quot;
+      }
+    ],
+    &quot;note&quot;: &quot;No matches means no matching extracted text, not proof the original document lacks evidence.&quot;
+  }
+}</pre></details><details><summary>3. search_evidence</summary><pre>{
+  &quot;arguments&quot;: {
+    &quot;query&quot;: &quot;Onsite OEM Warranty&quot;
+  },
+  &quot;result&quot;: {
+    &quot;matches&quot;: [
+      {
+        &quot;evidence_id&quot;: &quot;BID-1&quot;,
+        &quot;source&quot;: &quot;BID&quot;,
+        &quot;page&quot;: 1,
+        &quot;preview&quot;: &quot;inancial Years)\nLocal Content %:\n58% Class-1 Local Supplier\nWarranty SLA:\n3-Year Comprehensive Onsite OEM Warranty\nGOVERNMENT OF INDIA - GeM BID PORTAL\nOFFICIAL PROCUREMENT DOCUMENTATION\nGeM Procurement Standard Specification | Statutory Compliance Certified\nPage 1 of 12&quot;
+      },
+      {
+        &quot;evidence_id&quot;: &quot;BID-2&quot;,
+        &quot;source&quot;: &quot;BID&quot;,
+        &quot;page&quot;: 1,
+        &quot;preview&quot;: &quot;rehensive Onsite OEM Warranty\nGOVERNMENT OF INDIA - GeM BID PORTAL\nOFFICIAL PROCUREMENT DOCUMENTATION\nGeM Procurement Standard Specification | Statutory Compliance Certified\nPage 1 of 12&quot;
+      },
+      {
+        &quot;evidence_id&quot;: &quot;TENDER-14&quot;,
+        &quot;source&quot;: &quot;TENDER&quot;,
+        &quot;page&quot;: 1,
+        &quot;preview&quot;: &quot;Minimum 50% Domestic Value Addition Required)\nComprehensive Warranty SLA:\n3-Year Comprehensive Onsite 24x7 OEM Warranty with 4-hr MTTR Response\nConsignee Delivery Location:\nCPCL Central IT Complex, Chennai &amp; R&quot;
+      },
+      {
+        &quot;evidence_id&quot;: &quot;TENDER-15&quot;,
+        &quot;source&quot;: &quot;TENDER&quot;,
+        &quot;page&quot;: 1,
+        &quot;preview&quot;: &quot;Minimum 50% Domestic Value Addition Required)\nComprehensive Warranty SLA:\n3-Year Comprehensive Onsite 24x7 OEM Warranty with 4-hr MTTR Response\nConsignee Delivery Location:\nCPCL Central IT Complex, Chennai &amp; Regional Data Centers\nDelivery Timeline:\n30 Calendar Days from Notification of Award (NOA)\nG&quot;
+      },
+      {
+        &quot;evidence_id&quot;: &quot;TENDER-22&quot;,
+        &quot;source&quot;: &quot;TENDER&quot;,
+        &quot;page&quot;: 5,
+        &quot;preview&quot;: &quot;SECTION IV: WARRANTY COMMITMENT &amp; SERVICE LEVEL AGREEMENT\n1. Comprehensive Onsite Warranty: Minimum 3-Year 24x7 comprehensive onsite warranty covering all hardware parts, power supplies,\nmotherboard, display panel, keyboard, and mouse.\n2. Mean Time to Respond (MTTR): Maximum 4 hours from incident lo&quot;
+      },
+      {
+        &quot;evidence_id&quot;: &quot;BID-3&quot;,
+        &quot;source&quot;: &quot;BID&quot;,
+        &quot;page&quot;: 2,
+        &quot;preview&quot;: &quot;0,000), 58% local content manufacturing certifications, and OEM authorization documents (Part 2).\nAll technical parameters comply 100% with Tender Reference GEM/2026/B/892100 specifications.\nGOVERNMENT OF INDIA - GeM BID PORTAL\nOFFICIAL PROCUREMENT DOCUMENTATION\nGeM Procurement Standard Specificatio&quot;
+      }
+    ],
+    &quot;note&quot;: &quot;No matches means no matching extracted text, not proof the original document lacks evidence.&quot;
+  }
+}</pre></details><details><summary>4. read_evidence</summary><pre>{
+  &quot;arguments&quot;: {
+    &quot;evidence_id&quot;: &quot;BID-1&quot;
+  },
+  &quot;result&quot;: {
+    &quot;evidence_id&quot;: &quot;BID-1&quot;,
+    &quot;source&quot;: &quot;BID&quot;,
+    &quot;filename&quot;: &quot;Bid_MegaTech_BigBrand.pdf&quot;,
+    &quot;page&quot;: 1,
+    &quot;extraction_method&quot;: &quot;EXTRACTED_TEXT&quot;,
+    &quot;text&quot;: &quot;MEGATECH SOLUTIONS INTERNATIONAL PVT LTD\nCOMMERCIAL &amp; TECHNICAL BID SUBMISSION FOR GeM TENDER GEM/2026/B/892100\nTender Reference: GEM/2026/B/892100 | Date: 23-January-2026\nCompany Name:\nMegaTech Solutions International Private Limited\nGSTIN:\n07AAACM9988K1ZO (Status: ACTIVE / REGULAR, Delhi)\nPAN:\nAAACM9988K (Matched across all corporate filings)\nTotal Quoted Price:\nINR 48,50,000 (All Inclusive for 100 Units)\nEMD Bank Guarantee:\nBank Guarantee No. BG/SBI/2026/8821 for INR 1,00,000 issued by State Bank of India\nAudited Turnover:\nINR 45.80 Crore (Last 3 Audited Financial Years)\nLocal Content %:\n58% Class-1 Local Supplier\nWarranty SLA:\n3-Year Comprehensive Onsite OEM Warranty\nGOVERNMENT OF INDIA - GeM BID PORTAL\nOFFICIAL PROCUREMENT DOCUMENTATION\nGeM Procurement Standard Specification | Statutory Compliance Certified\nPage 1 of 12&quot;
+  }
+}</pre></details><p>AI advice only. Citation locations and quotes are checked; interpretation still requires officer verification. No verdict changed.</p><small>Only the passages and claims in this recorded response were reviewed. Exact quotation matching does not certify document authenticity or legal correctness.</small></main></html>

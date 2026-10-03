@@ -17,7 +17,7 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
         tender_requirements = {}
 
     results = []
-    is_unreadable = extracted_data.get("is_unreadable", False)
+    is_unreadable = extracted_data.get("is_unreadable", False) or extracted_data.get("extraction_complete") is False
     if not is_unreadable and "raw_text_length" in extracted_data:
         if extracted_data.get("raw_text_length", 0) < 50 and not any([
             extracted_data.get("gstin"),
@@ -36,14 +36,14 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
             "clause_name": "GSTIN Registration & Tax Compliance",
             "status": "NEEDS_REVIEW",
             "regulation_ref": "Statutory Tax Compliance / GeM Registration Norms",
-            "evidence": "Document is empty or text could not be extracted; GSTIN unverified.",
+            "evidence": "Document is unreadable or extraction is incomplete; GSTIN unverified.",
             "remedy": "Upload clear digital PDF or legible scanned document."
         })
     elif not gstin:
         results.append({
             "clause_id": "GFR-149-GST",
             "clause_name": "GSTIN Registration & Tax Compliance",
-            "status": "FAIL",
+            "status": "NEEDS_REVIEW",
             "regulation_ref": "Statutory Tax Compliance / GeM Registration Norms",
             "evidence": "No GSTIN certificate or registration found in submission.",
             "remedy": "Submit active GSTIN certificate with current filing proof."
@@ -90,7 +90,7 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
             "clause_name": "Annual Financial Turnover Requirement",
             "status": "NEEDS_REVIEW",
             "regulation_ref": "Tender Financial Criteria / GFR 2017 Rule 173",
-            "evidence": "Document is empty or text could not be extracted; turnover unresolved.",
+            "evidence": "Document is unreadable or extraction is incomplete; turnover unresolved.",
             "remedy": "Upload clear digital PDF or audited balance sheets."
         })
     elif min_turnover is None:
@@ -106,10 +106,10 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
         results.append({
             "clause_id": "GFR-160-MSME",
             "clause_name": "Annual Financial Turnover Requirement",
-            "status": "EXEMPT",
+            "status": "NEEDS_REVIEW",
             "regulation_ref": "Public Procurement Policy for MSEs Order 2012 / DoE OM F.20/2/2014-PPD",
-            "evidence": f"Registered Micro/Small Enterprise ({udyam}). Statutory exemption granted from prior turnover criteria.",
-            "remedy": None
+            "evidence": f"Udyam identifier {udyam} is declared. Enterprise category, certificate authenticity and tender-specific turnover relaxation require officer verification.",
+            "remedy": "Verify exemption eligibility and tender applicability; record an officer decision with supporting justification."
         })
     elif is_msme and not udyam:
         # Vendor claims MSME but no valid Udyam identifier provided
@@ -161,7 +161,7 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
             "clause_name": "Earnest Money Deposit (EMD)",
             "status": "NEEDS_REVIEW",
             "regulation_ref": "Tender Bid Security Clause / GFR 2017 Rule 170",
-            "evidence": "Document is empty or text could not be extracted; EMD submission unresolved.",
+            "evidence": "Document is unreadable or extraction is incomplete; EMD submission unresolved.",
             "remedy": "Upload clear digital PDF or legible EMD Bank Guarantee copy."
         })
     elif emd_required is None:
@@ -186,10 +186,10 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
         results.append({
             "clause_id": "GFR-170-EMD",
             "clause_name": "Earnest Money Deposit (EMD)",
-            "status": "EXEMPT",
+            "status": "NEEDS_REVIEW",
             "regulation_ref": "Public Procurement Policy for MSEs Order 2012, Para 10 / GFR 2017 Rule 170(i)",
-            "evidence": f"Exempted from EMD submission under Central Government MSME provisions (Udyam: {udyam}).",
-            "remedy": None
+            "evidence": f"EMD exemption claimed using {udyam}; certificate authenticity, eligible enterprise category and tender applicability remain unverified.",
+            "remedy": "Verify exemption eligibility and tender applicability; record an officer decision with supporting justification."
         })
     elif is_msme and not udyam:
         results.append({
@@ -219,7 +219,7 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
                     "clause_name": "Earnest Money Deposit (EMD)",
                     "status": "PASS",
                     "regulation_ref": "Tender Bid Security Clause / GFR 2017 Rule 170",
-                    "evidence": f"Valid EMD Bank Guarantee / FDR submitted for INR {emd_amount_inr:,.0f}{inst_txt}.",
+                    "evidence": f"Declared EMD amount INR {emd_amount_inr:,.0f}{inst_txt} meets tender amount; instrument authenticity and validity are not verified offline.",
                     "remedy": None
                 })
         else:
@@ -262,7 +262,7 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
             "clause_name": "Make in India Local Content Preference",
             "status": "NEEDS_REVIEW",
             "regulation_ref": "Public Procurement (Make in India) Order 2017 (DPIIT)",
-            "evidence": "Document is empty or text could not be extracted; local content unresolved.",
+            "evidence": "Document is unreadable or extraction is incomplete; local content unresolved.",
             "remedy": "Upload clear digital PDF or legible local content self-declaration."
         })
     elif min_local is None:
@@ -289,7 +289,7 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
             "clause_name": "Make in India Local Content Preference",
             "status": "PASS",
             "regulation_ref": "Public Procurement (Make in India) Order 2017 (DPIIT)",
-            "evidence": f"Local content of {local_pct}% qualifies as Class-1 Local Supplier (Threshold >= {min_local}%).",
+            "evidence": f"Declared local content of {local_pct}% meets tender threshold >= {min_local}%; certificate authenticity requires officer verification.",
             "remedy": None
         })
     else:
@@ -298,7 +298,7 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
             "clause_name": "Make in India Local Content Preference",
             "status": "FAIL",
             "regulation_ref": "Public Procurement (Make in India) Order 2017 (DPIIT)",
-            "evidence": f"Local content of {local_pct}% fails Class-1 Local Supplier requirement (Minimum {min_local}%).",
+            "evidence": f"Declared local content of {local_pct}% falls below tender minimum {min_local}%.",
             "remedy": f"Provide OEM certificate verifying >= {min_local}% domestic value addition."
         })
 
@@ -312,7 +312,7 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
         elif "onsite" in warranty.lower() or "on-site" in warranty.lower():
             offered_service_type = "Onsite"
 
-    required_service_type = tender_requirements.get("required_service_type", "Onsite")
+    required_service_type = tender_requirements.get("required_service_type")
     min_warranty_years = tender_requirements.get("min_warranty_years")
 
     if offered_years is None and warranty:
@@ -326,7 +326,6 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
             offered_years = 1.0
         elif "6-month" in warranty.lower():
             offered_years = 0.5
-            offered_service_type = "Carry-in"
 
     if is_unreadable:
         results.append({
@@ -334,7 +333,7 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
             "clause_name": "Comprehensive Onsite Warranty",
             "status": "NEEDS_REVIEW",
             "regulation_ref": "Tender Technical Specifications (Warranty SLA)",
-            "evidence": "Document is empty or text could not be extracted; warranty terms unresolved.",
+            "evidence": "Document is unreadable or extraction is incomplete; warranty terms unresolved.",
             "remedy": "Upload clear digital PDF or legible warranty certificate."
         })
     elif min_warranty_years is None:
@@ -355,32 +354,42 @@ def evaluate_compliance(extracted_data: dict, tender_requirements: dict = None) 
             "evidence": f"Warranty terms unspecified or unreadable ({warranty}). Required: {min_warranty_years:.0f}-Year {required_service_type}.",
             "remedy": f"Provide OEM commitment letter for {min_warranty_years:.0f}-Year {required_service_type} warranty coverage."
         })
-    elif required_service_type.lower() == "onsite" and offered_service_type.lower() == "carry-in":
-        results.append({
-            "clause_id": "SPEC-WARRANTY",
-            "clause_name": "Comprehensive Onsite Warranty",
-            "status": "FAIL",
-            "regulation_ref": "Tender Technical Specifications (Warranty SLA)",
-            "evidence": f"Offers {warranty} ({offered_years:.1f} yr Carry-in) which fails mandatory Onsite warranty requirement (SLA service location mismatch).",
-            "remedy": f"Provide OEM commitment letter upgrading warranty to {min_warranty_years:.0f}-Year Onsite coverage."
-        })
     elif offered_years < min_warranty_years:
         results.append({
-            "clause_id": "SPEC-WARRANTY",
-            "clause_name": "Comprehensive Onsite Warranty",
-            "status": "FAIL",
+            "clause_id": "SPEC-WARRANTY", "clause_name": "Warranty Duration & Service",
+            "status": "FAIL", "regulation_ref": "Tender Technical Specifications (Warranty SLA)",
+            "evidence": f"Offers {offered_years:g} years; fails mandatory {min_warranty_years:g}-Year requirement.",
+            "remedy": "Provide evidence meeting the applicable warranty duration."
+        })
+    elif not required_service_type or offered_service_type in (None, "Standard", ""):
+        results.append({
+            "clause_id": "SPEC-WARRANTY", "clause_name": "Warranty Duration & Service",
+            "status": "NEEDS_REVIEW", "regulation_ref": "Tender Technical Specifications (Warranty SLA)",
+            "evidence": "Duration is sufficient, but required or offered service location is unresolved.",
+            "remedy": "Confirm the tender service location and vendor commitment from source evidence."
+        })
+    elif required_service_type.lower() != offered_service_type.lower():
+        results.append({
+            "clause_id": "SPEC-WARRANTY", "clause_name": "Warranty Duration & Service",
+            "status": "FAIL" if required_service_type == "Onsite" and offered_service_type == "Carry-in" else "NEEDS_REVIEW",
             "regulation_ref": "Tender Technical Specifications (Warranty SLA)",
-            "evidence": f"Offers {warranty} ({offered_years:.1f} yr) which fails mandatory {min_warranty_years:.0f}-Year requirement.",
-            "remedy": f"Provide OEM commitment letter for {min_warranty_years:.0f}-Year onsite warranty coverage."
+            "evidence": f"Offered {offered_service_type}; required {required_service_type}: service location mismatch.",
+            "remedy": "Officer must resolve service compatibility against the tender."
         })
     else:
         results.append({
-            "clause_id": "SPEC-WARRANTY",
-            "clause_name": "Comprehensive Onsite Warranty",
-            "status": "PASS",
-            "regulation_ref": "Tender Technical Specifications (Warranty SLA)",
-            "evidence": f"Offers {warranty} ({offered_years:.0f} yr >= mandatory {min_warranty_years:.0f} yr {required_service_type} requirement).",
+            "clause_id": "SPEC-WARRANTY", "clause_name": "Warranty Duration & Service",
+            "status": "PASS", "regulation_ref": "Tender Technical Specifications (Warranty SLA)",
+            "evidence": f"Declared {offered_years:g}-Year {offered_service_type} warranty meets evaluated duration and location requirements.",
             "remedy": None
         })
 
+    if extracted_data.get("ocr_only"):
+        # OCR transcription supplies candidate values, not independently verified evidence.
+        for result in results:
+            if result["status"] in {"PASS", "FAIL", "EXEMPT"}:
+                result["unverified_machine_status"] = result["status"]
+                result["status"] = "NEEDS_REVIEW"
+                result["evidence"] += " OCR-derived finding: inspect the source image before confirming this verdict."
+                result["remedy"] = "Compare the extracted value with the scanned source and record the officer decision."
     return results

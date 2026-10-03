@@ -19,8 +19,9 @@ class TestBidLensCore(unittest.TestCase):
         """Verify edge sovereignty health check reports 100% operational."""
         health = get_system_health_status()
         self.assertEqual(health["system_status"], "OPERATIONAL")
-        self.assertIn("SOVEREIGN", health["mode"])
-        self.assertEqual(health["data_consumption_kb"], 0.0)
+        self.assertEqual(health["mode"], "LOCAL_DETERMINISTIC_CORE")
+        self.assertIsNone(health["data_consumption_kb"])
+        self.assertFalse(health["ai_capabilities"]["llm_review_enabled"])
         self.assertEqual(health["security_integrity"]["guidelines_alignment"], "PROTOTYPE_BASELINE")
         self.assertNotIn("tamper_proof_audit_log", health["security_integrity"])
         self.assertNotIn("cert_in_compliance", health["security_integrity"])
@@ -33,7 +34,7 @@ class TestBidLensCore(unittest.TestCase):
             "min_local_content_pct": 50,
             "min_warranty_years": 3,
         }
-        # MSME bidder with turnover below 1.5 Cr should be EXEMPT, not FAIL
+        # A declared Udyam ID alone cannot verify statutory exemption eligibility.
         msme_bid = {
             "vendor_name": "Apex Labs Micro Devices LLP",
             "is_msme": True,
@@ -49,8 +50,8 @@ class TestBidLensCore(unittest.TestCase):
         results = evaluate_compliance(msme_bid, tender_rules)
         clauses = {r["clause_id"]: r["status"] for r in results}
         
-        self.assertEqual(clauses.get("GFR-160-MSME"), "EXEMPT")
-        self.assertEqual(clauses.get("GFR-170-EMD"), "EXEMPT")
+        self.assertEqual(clauses.get("GFR-160-MSME"), "NEEDS_REVIEW")
+        self.assertEqual(clauses.get("GFR-170-EMD"), "NEEDS_REVIEW")
         self.assertEqual(clauses.get("MII-2017-LC"), "PASS")
 
     def test_disqualification_on_expired_gstin(self):

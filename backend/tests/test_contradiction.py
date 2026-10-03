@@ -23,7 +23,7 @@ class TestContradictionDetector(unittest.TestCase):
         contradictions = detect_cross_document_contradictions(extracted, {"pan_gstin_consistent": True})
         pan_flags = [c for c in contradictions if c["contradiction_id"] == "CONTRA-PAN-01"]
         self.assertEqual(len(pan_flags), 1)
-        self.assertEqual(pan_flags[0]["severity"], "CRITICAL")
+        self.assertEqual(pan_flags[0]["severity"], "HIGH")
 
 
     def test_contra_gst_pan_02_and_tax_status_03(self):

@@ -1,3 +1,5 @@
+> **Current demo baseline:** Read [DEMO_READINESS.md](DEMO_READINESS.md) for verified scope, local setup and limitations. This build performs deterministic tender checks and local OCR. Optional Gemini advisory review is implemented with bounded read-only tools; a server API key and a successful live rehearsal are required. Registry connections, authenticated officer access, durable audit results and complete cross-attachment evaluation remain future work. Historical architecture descriptions below must not be presented as verified capabilities.
+
 # BidLens AI 🔍
 ### *AI-Powered GeM Bid Compliance Verification Platform*
 **Smart India Hackathon 2026 | Problem ID: SIH26100**
@@ -9,7 +11,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111.0-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com)
 [![Vercel Deployment](https://img.shields.io/badge/Vercel-Frontend%20Live-000000.svg?logo=vercel)](https://bidlens-ai.vercel.app)
 [![Render Cloud Backend](https://img.shields.io/badge/Render-Backend%20Live-46E3B7.svg?logo=render)](https://bidlens-ai-pro.onrender.com/system/health)
-[![GFR 2017 Compliant](https://img.shields.io/badge/GFR%202017-Validated-brightgreen.svg)]()
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![SIH 2026](https://img.shields.io/badge/SIH-2026-orange.svg)]()
 
@@ -30,7 +32,7 @@ Manual evaluation is prone to:
 * **Long Turnaround Times:** Weeks spent manually validating GSTIN, MCA company statuses, and GFR clauses.
 * **Integrity Risks:** Lack of an immutable audit trail and potential tampering with submitted documents.
 
-**BidLens AI** is an intelligent procurement co-pilot designed to streamline GeM bid audits. It verifies compliance against statutory rules deterministically, detects subtle cross-document contradictions, calculates an explainable rejection-risk score with exact clause and page references, and spotlights high-value MSME vendors.
+**BidLens AI** is an intelligent procurement co-pilot designed to streamline GeM bid audits. It verifies compliance against statutory rules deterministically, detects subtle cross-document contradictions, calculates an explainable rejection-risk score with generated clause-level explanations, and spotlights high-value MSME vendors.
 
 ---
 
@@ -39,12 +41,12 @@ Manual evaluation is prone to:
 | Capability | Description |
 | :--- | :--- |
 | **Multi-Modal Document Parsing** | Digital and scanned document ingestion via **PyMuPDF** (digital PDFs), **RapidOCR** with **ONNX Runtime** (scanned letters/images), **python-docx** (Word proposals), and **openpyxl** (Excel BoQ schedules). |
-| **Deterministic GFR 2017 Rule Engine** | 100% deterministic rule checks (zero LLM hallucination) for **Rule 149** (Certificate Validity), **Rule 160** (Turnover), **Rule 170** (EMD calculations), and MSME exemptions. |
-| **Cross-Document Contradiction Detector** | Pinpoints mismatches in GSTIN, PAN, company names, OEM authorization letters (MAF), and turnover figures across multiple uploaded attachments. |
+| **Deterministic GFR 2017 Rule Engine** | Five implemented deterministic checks against tender criteria. Claimed MSE exemptions require officer verification; this is not a complete statutory ruleset. |
+| **Cross-Document Contradiction Detector** | Flags identifier and declaration anomalies within the extracted content of one submitted file. Independently uploaded attachments are not combined. |
 | **Clause-to-Evidence Knowledge Graph** | Built with **NetworkX**, establishing transparent relationships: `Regulation` ➔ `Clause` ➔ `Required Evidence` ➔ `Submitted Document` ➔ `Audit Decision`. |
-| **Explainable Rejection-Risk Scorer** | Replaces black-box AI scores with grounded risk reports citing specific clause failures, regulation references, and evidence page numbers. |
-| **Statutory Checksum & Offline Registry Engine** | Offline **Modulus-36 GSTIN checksum verification**, PAN structural extraction, and simulated GSTN/MCA21 baseline checks without external data leakage. |
-| **Security & Integrity Tracking** | Instant **SHA-256 cryptographic fingerprinting** upon upload, prompt-injection defense filters, and strict boundary validation. |
+| **Explainable Rejection-Risk Scorer** | Provides a heuristic risk index and explanations based on evaluated clause results; no calibrated probability or complete source-page mapping is claimed. |
+| **Statutory Checksum & Offline Registry Engine** | Offline Modulus-36 GSTIN checksum and identifier syntax checks. Live registry status, certificate authenticity and debarment clearance remain unverified. |
+| **Security & Integrity Tracking** | SHA-256 source fingerprints and locally appended officer events. Hashes do not authenticate documents, and event storage is not cryptographically tamper-evident. |
 | **Human-in-the-Loop Supervisory Review** | Officer decision portal for approving, rejecting, or overriding clause verdicts with mandatory written justifications and structured audit event logging. |
 
 ---

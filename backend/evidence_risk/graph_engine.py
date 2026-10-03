@@ -42,7 +42,7 @@ def build_compliance_knowledge_graph(file_info: dict, clause_results: list, govt
         G.add_node(evidence_node_id, label=evidence[:60] + ("..." if len(evidence) > 60 else ""), full_evidence=evidence, type="evidence", color="#0284C7")
         
         # Decision color based on status
-        status_color = "#16A34A" if status == "PASS" else ("#2563EB" if status == "EXEMPT" else "#DC2626")
+        status_color = {"PASS": "#16A34A", "EXEMPT": "#2563EB", "NOT_APPLICABLE": "#64748B", "NEEDS_REVIEW": "#D97706"}.get(status, "#DC2626")
         G.add_node(decision_node_id, label=f"{status}: {clause_name}", status=status, type="decision", color=status_color)
 
         # Add Directed Edges (Semantic flow)
@@ -56,7 +56,7 @@ def build_compliance_knowledge_graph(file_info: dict, clause_results: list, govt
     govt_status = govt_verification.get("overall_govt_verification", "FLAGGED_FOR_REVIEW")
     govt_color = "#16A34A" if govt_status == "PASS" else "#DC2626"
     G.add_node(govt_node_id, label=f"Govt Verification ({govt_status})", type="govt_check", color=govt_color)
-    G.add_edge(doc_node_id, govt_node_id, relation="cross_verified_with_portal")
+    G.add_edge(doc_node_id, govt_node_id, relation="checked_offline")
 
     # 4. Serialize to clean UI-friendly JSON format
     nodes_list = []
