@@ -81,6 +81,102 @@ BidLens AI is structured into a **six logical application layers**:
 
 ---
 
+## 📂 Project Structure
+
+```text
+BidLens-AI-Pro/
+├── DEMO_READINESS.md                    # Verified scope, limitations & rehearsal guide
+├── DEMO_WALKTHROUGH.md                  # Step-by-step judge demonstration script & narration
+├── Start_BidLens.bat                    # 1-Click launcher for both backend & frontend
+├── Dockerfile                           # Root Docker container specification
+├── render.yaml                          # Render cloud deployment configuration
+├── vercel.json                          # Monorepo Vercel routing & edge rewrite proxy
+├── backend/                             # Sovereign FastAPI Backend Service
+│   ├── main.py                          # FastAPI entry point & CORS configuration (Port 8000)
+│   ├── requirements.txt                 # Backend dependencies (fastapi, rapidocr, google-genai, pytest)
+│   ├── Dockerfile                       # Debian-slim container definition
+│   ├── .env.example                     # Backend environment template (GEMINI_API_KEY, GEMINI_MODEL)
+│   ├── evidence_risk/                   # Layer 4: Evidence & Contradiction Analytics
+│   │   ├── contradiction.py             # Cross-document discrepancy & anomaly detector
+│   │   ├── graph_engine.py              # NetworkX Clause-to-Evidence Knowledge Graph
+│   │   ├── risk_scorer.py               # Explainable heuristic review-risk calculator
+│   │   └── source_review.py             # Real extracted evidence excerpt retriever & passage locator
+│   ├── models/                          # Pydantic Schemas & Data Contracts
+│   │   └── schemas.py                   # API models, request/response validation & 5-state enums
+│   ├── orchestrator/                    # Layer 3 & Layer 5: Orchestration & AI Agents
+│   │   ├── ai_processing.py             # Multi-modal extraction (PyMuPDF, RapidOCR ONNX, docx, openpyxl)
+│   │   ├── govt_verify.py               # Modulus-36 GSTIN checksum & offline tax validation
+│   │   ├── llm_agent.py                 # Autonomous Gemini EvidenceReviewAgent & bounded tool loop
+│   │   ├── orchestrator.py              # Parallel 3-branch async evaluation coordinator
+│   │   └── rule_engine.py               # Deterministic GFR 2017 & statutory exemption rules
+│   ├── routers/                         # Layer 2: API Endpoints
+│   │   ├── audit.py                     # Audit execution, overrides, trail, revision diff & Gemini review
+│   │   ├── document.py                  # Tender/bid upload, sample ingestion & SHA-256 fingerprinting
+│   │   └── review.py                    # Officer decision logging & review management
+│   ├── security/                        # Sovereign Offline & Anti-Tampering Engine
+│   │   ├── offline_mode.py              # Sovereign system health, telemetry & air-gap verification
+│   │   └── sha256_audit.py              # Cryptographic hashing & prompt boundary sanitization
+│   ├── utils/                           # Output & Report Generation
+│   │   └── pdf_generator.py             # Certified 2-page audit dossier with manual sign-off
+│   ├── generated_reports/               # Generated PDF audit dossiers & override trail
+│   │   └── audit_override_trail.jsonl   # Durable, append-only supervisory override event history
+│   ├── uploaded_docs/                   # Staged upload repository for active tender & vendor bids
+│   └── tests/                           # 125 Automated Unit & Integration Tests (100% Passing)
+│       ├── conftest.py                  # Shared test fixtures & environment isolation
+│       ├── test_audit_remediation.py    # Remediation gates (EMD, warranty, thresholds, overrides)
+│       ├── test_contradiction.py        # Cross-document contradiction rule tests
+│       ├── test_core.py                 # Core compliance & sovereign health checks
+│       ├── test_demo_correctness.py     # Demo baseline correctness & boundary assertion tests
+│       ├── test_demo_workflow.py        # End-to-end frozen revision & source inspection workflow tests
+│       ├── test_document_samples.py     # Sample bid loading & multi-format parser tests
+│       ├── test_graph_engine.py         # NetworkX semantic compliance relations tests
+│       ├── test_llm_review.py           # Gemini agent tool loop, quote verification & quota tests
+│       ├── test_main.py                 # Application mounting & health telemetry tests
+│       ├── test_orchestrator.py         # 3-Branch parallel fan-out execution tests
+│       ├── test_pdf_generator.py        # PDF dossier generation & override rendering tests
+│       └── test_routers.py              # FastAPI endpoint routing & contract tests
+├── frontend/                            # Layer 1: Next.js Officer Web Portal
+│   ├── components/
+│   │   ├── AIReviewPanel.js             # Autonomous Gemini evidence review UI component
+│   │   ├── RevisionComparison.js        # Side-by-side frozen revision delta & improvement inspector
+│   │   ├── SourceEvidencePanel.js       # Real extracted document snippet & page locator viewer
+│   │   └── SubmissionChecklist.js       # Required document submission checklist & status tracker
+│   ├── pages/
+│   │   ├── _app.js                      # Application wrapper, theme & global styling
+│   │   └── index.js                     # Main officer dashboard, audit view & override modal
+│   ├── public/
+│   │   └── logo.jpg                     # Static branding assets
+│   ├── styles/
+│   │   └── globals.css                  # Government of India procurement design system styling
+│   ├── utils/
+│   │   └── sihSampleCache.js            # Sample audit baseline cache for immediate demonstration
+│   ├── next.config.js                   # Next.js configuration & local backend rewrite proxy
+│   ├── package.json                     # Frontend dependencies & scripts
+│   ├── package-lock.json                # Locked Node.js dependency tree
+│   └── vercel.json                      # Vercel deployment configuration
+├── data/
+│   └── sample_bids/                     # Authentic Tender & Vendor Bid Packages
+│       ├── Tender_RFP_GeM_Computers.pdf # Master GeM Computer Procurement Tender RFP
+│       ├── Bid_ApexLabs_MSME.pdf        # Small MSME vendor proposal (Exemption claimed)
+│       ├── Bid_ApexLabs_Proposal.docx   # Word proposal specification document
+│       ├── Scanned_Letter_ApexLabs.png  # Stamped authorization scan for local RapidOCR
+│       ├── Bid_MegaTech_BigBrand.pdf    # Fully compliant Tier-1 OEM bid package
+│       ├── BoQ_PriceSchedule_MegaTech.xlsx # Itemized financial Bill of Quantities spreadsheet
+│       ├── Bid_GlobalCorp_Ineligible.pdf # Multi-clause non-compliant vendor proposal
+│       └── Bid_GlobalCorp_Rectified_ReEvaluation.pdf # Rectified re-submission for instant re-test
+├── docs/                                # Technical Documentation & Demonstration Assets
+│   ├── SIH26100_BidLens_Project_Master_Handover.pdf # Master technical documentation
+│   └── demo/                            # Pre-recorded demo walkthrough materials
+│       ├── RECORDED_GEMINI_DEMO.html    # Verified interactive Gemini review recording
+│       └── demo-officer-review.pdf      # Sample generated officer review audit dossier
+└── scripts/                             # Utility & Live Tunnel Scripts
+    ├── generate_comprehensive_samples.py # Test document generator
+    ├── run_live_tunnel.bat              # 1-Click public HTTPS tunnel for jury demos
+    └── run_live_tunnel.ps1              # PowerShell live tunnel script
+```
+
+---
+
 ## ✨ Core Subsystems & Capabilities
 
 ### 1. Multi-Modal Document Extraction Pipeline
